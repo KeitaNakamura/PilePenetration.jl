@@ -76,9 +76,9 @@ function main()
         total_time *= 2
     end
 
-    grid = Grid(NodeState, LinRange(0:dx:1.5), LinRange(0:dx:6.0))
+    grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), LinRange(0:dx:1.5), LinRange(0:dx:6.0))
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
-    space = MPSpace(WLS{1}(CubicBSpline{2}()), grid, pointstate.x)
+    space = MPSpace(grid, pointstate.x)
     elastic = LinearElastic(E = E, ν = ν)
     model = DruckerPrager(elastic, :inscribed, c = 0, ϕ = ϕ, ψ = ψ)
 
@@ -140,74 +140,77 @@ function main()
     ## copy this file
     cp(@__FILE__, joinpath(proj_dir, "main.jl"), force = true)
 
-    t = 0.0
     logger = Logger(0.0:0.02:total_time; progress = true)
-    # logger = Logger(0.0:0.0025:0.01; progress = true)
-    while !isfinised(logger, t)
-        reinit!(space, grid, pointstate.x, exclude = x -> in(x, pile))
 
-        # ρ_min = minimum(@. pointstate.m / (pointstate.V0 * det(pointstate.F)))
-        # vc = soundspeed(model.elastic.K, model.elastic.G, ρ_min)
-        # dt = max(0.5 * minimum(gridsteps(grid)) / vc, 1e-5)
-        # @show dt = 0.4*minimum(gridsteps(grid)) / vc
-        dt = 0.4e-5
+    sch = Poingr.Scheduler(grid, pointstate)
+    while !issynced(sch) || !isfinised(logger, currenttime(sch))
 
-        default_point_to_grid!(grid, pointstate, space, coord_system)
-        @. grid.state.v += (grid.state.f / grid.state.m) * dt
+        Poingr.updatetimestep!(sch, grid; exclude = in(pile)) do p
+            ρ = p.m / (p.V0 * det(p.F))
+            vc = soundspeed(model.elastic.K, model.elastic.G, ρ)
+            minimum(gridsteps(grid)) / vc
+        end
 
-        if any(space.nearsurface)
-            point_to_grid!((grid.state.d, grid.state.vᵣ), space, space.nearsurface) do it, p, i
-                @_inline_meta
-                @_propagate_inbounds_meta
-                N = it.N
-                w = it.w
-                vₚ = pointstate.v[p]
-                dₚ = contact_distance(pile, pointstate.x[p], pointstate.h[p])
-                d = N * dₚ
-                vᵣ = w * (vₚ - v_pile)
-                d, vᵣ
+        dt = asyncstep!(sch, grid) do pstate, dt
+            reinit!(space, grid, pstate.x, exclude = x -> in(x, pile))
+            default_point_to_grid!(grid, pstate, space, coord_system)
+            @. grid.state.v += (grid.state.f / grid.state.m) * dt
+            if any(space.nearsurface)
+                point_to_grid!((grid.state.d, grid.state.vᵣ), space, space.nearsurface) do it, p, i
+                    @_inline_meta
+                    @_propagate_inbounds_meta
+                    N = it.N
+                    w = it.w
+                    vₚ = pstate.v[p]
+                    dₚ = contact_distance(pile, pstate.x[p], pstate.h[p])
+                    d = N * dₚ
+                    vᵣ = w * (vₚ - v_pile)
+                    d, vᵣ
+                end
+                @. grid.state.vᵣ /= grid.state.w
+                @. grid.state.fc = contact_force(grid.state.vᵣ, grid.state.d, grid.state.m, dt, μ)
+                @. grid.state.v += (grid.state.fc / grid.state.m) * dt
             end
-            @. grid.state.vᵣ /= grid.state.w
-            @. grid.state.fc = contact_force(grid.state.vᵣ, grid.state.d, grid.state.m, dt, μ)
-            @. grid.state.v += (grid.state.fc / grid.state.m) * dt
-        end
 
-        for bd in eachboundary(grid)
-            @. grid.state.v[bd.indices] = boundary_velocity(grid.state.v[bd.indices], bd.n)
-        end
-
-        default_grid_to_point!(pointstate, grid, space, dt, coord_system)
-        @inbounds Threads.@threads for p in eachindex(pointstate)
-            Fₚ = pointstate.F[p]
-            if det(Fₚ) < 0
-                pointstate.F[p] = zero(Fₚ)
+            for bd in eachboundary(grid)
+                @. grid.state.v[bd.indices] = boundary_velocity(grid.state.v[bd.indices], bd.n)
             end
-            pointstate.σ[p] = stress(model, pointstate.σ[p], pointstate.∇v[p], dt)
-        end
 
+            default_grid_to_point!(pstate, grid, space, dt, coord_system)
+            @inbounds Threads.@threads for p in eachindex(pstate)
+                Fₚ = pstate.F[p]
+                if det(Fₚ) < 0
+                    pstate.F[p] = zero(Fₚ)
+                end
+                pstate.σ[p] = stress(model, pstate.σ[p], pstate.∇v[p], dt)
+            end
+        end
         translate!(pile, v_pile * dt)
-        update!(logger, t += dt)
 
+        issynced(sch) || continue
+
+        update!(logger, currenttime(sch))
         if islogpoint(logger)
-            Poingr.reordering_pointstate!(pointstate, space)
+            t = currenttime(sch)
+            pstate = synced_pointstate(sch)
             paraview_collection(paraview_file, append = true) do pvd
                 vtk_multiblock(string(paraview_file, logindex(logger))) do vtm
-                    vtk_points(vtm, pointstate.x) do vtk
-                        ϵₚ = @dot_lazy symmetric(pointstate.F - $Ref(I))
-                        vtk_point_data(vtk, pointstate.v, "velocity")
-                        vtk_point_data(vtk, @dot_lazy(-mean.(pointstate.σ)), "mean stress")
-                        vtk_point_data(vtk, @dot_lazy(deviatoric_stress.(pointstate.σ)), "deviatoric stress")
+                    vtk_points(vtm, pstate.x) do vtk
+                        ϵₚ = @dot_lazy symmetric(pstate.F - $Ref(I))
+                        vtk_point_data(vtk, pstate.v, "velocity")
+                        vtk_point_data(vtk, @dot_lazy(-mean.(pstate.σ)), "mean stress")
+                        vtk_point_data(vtk, @dot_lazy(deviatoric_stress.(pstate.σ)), "deviatoric stress")
                         vtk_point_data(vtk, @dot_lazy(volumetric_strain.(ϵₚ)), "volumetric strain")
                         vtk_point_data(vtk, @dot_lazy(deviatoric_strain.(ϵₚ)), "deviatoric strain")
-                        vtk_point_data(vtk, pointstate.σ, "stress")
+                        vtk_point_data(vtk, pstate.σ, "stress")
                         vtk_point_data(vtk, ϵₚ, "strain")
-                        vtk_point_data(vtk, @dot_lazy(pointstate.m / (pointstate.V0 * det(pointstate.F))), "density")
+                        vtk_point_data(vtk, @dot_lazy(pstate.m / (pstate.V0 * det(pstate.F))), "density")
                     end
                     vtk_grid(vtm, pile)
                     # vtk_grid(vtm, grid) do vtk
-                        # vtk_point_data(vtk, vec(grid.state.m), "mass")
-                        # vtk_point_data(vtk, vec(grid.state.V), "volume")
-                        # vtk_point_data(vtk, vec(grid.state.ρ), "density")
+                        # vtk_point_data(vtk, vec(vᵢ), "nodal velocity")
+                        # vtk_point_data(vtk, vec(vᵢ_before_contact), "nodal velocity before contact")
+                        # vtk_point_data(vtk, vec(fcᵢ), "nodal contact force")
                     # end
                     pvd[t] = vtm
                 end
@@ -218,7 +221,7 @@ function main()
             open(csv_file, "a") do io
                 disp = norm(centroid(pile) - pile_center_0)
                 force = -sum(grid.state.fc)[2] * 2π
-                disp_inside_pile = -(find_ground_pos(pointstate.x) - ground_pos0)
+                disp_inside_pile = -(find_ground_pos(pstate.x) - ground_pos0)
                 writedlm(io, [disp force disp_inside_pile sum(@view tip[:,3]) sum(@view inside[:,3]) sum(@view outside[:,3])], ',')
             end
 
