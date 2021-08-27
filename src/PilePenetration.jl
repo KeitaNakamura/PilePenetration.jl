@@ -46,27 +46,26 @@ end
 function main()
     coord_system = :axisymmetric
 
-    res = 1 # 数値が高いほど解像度が大きい
+    res = 5 # 数値が高いほど解像度が大きい
     @showval ρ₀ = 1.6e3      "乾燥密度"          "kg/m³"
     @showval g = 9.81        "重力加速度"        "m/s²"
-    @showval h = 20          "地盤高さ"          "m"
-    @showval ϕ = 35          "内部摩擦角"        "˚"
+    @showval h = 3           "地盤高さ"          "m"
+    @showval ϕ = 38          "内部摩擦角"        "˚"
     @showval ψ = 0           "ダイレタンシー角"  "˚"
     @showval ν = 0.333       "ポアソン比"
     @showval E = 1e6         "ヤング係数"        "Pa"
-    @showval μ = 0.3         "摩擦係数"
-    # @showval dx = 0.1/res   "メッシュの幅"      "m"
-    @showval dx = 0.025/res   "メッシュの幅"      "m"
-    # @showval dx = 0.02/res   "メッシュの幅"      "m"
+    @showval μ = 0.53         "摩擦係数"
+    # @showval dx = 0.025/res   "メッシュの幅"      "m"
+    @showval dx = 2.5e-3   "メッシュの幅"      "m"
 
     @showval thick = 2dx           "肉厚"            "m"
-    @showval D_i = 1.5             "杭頭径（内径）"  "m"
-    @showval d_i = 1.221           "先端径（内径）"  "m"
-    @showval taper_length = 4.0    "テーパー長"      "m"
+    @showval D_i = 0.15            "杭頭径（内径）"  "m"
+    @showval d_i = 0.10            "先端径（内径）"  "m"
+    @showval taper_length = 0.715  "テーパー長"      "m"
     @showval taper_angle = atan((D_i-d_i) / 2taper_length) |> rad2deg "テーパー角" "˚"
 
-    @showval vy_pile = 1.0         "貫入速度"        "m/s"
-    @showval total_time = 14.8     "貫入時間"        "s"
+    @showval vy_pile = 0.5         "貫入速度"        "m/s"
+    @showval total_time = 4.0     "貫入時間"        "s"
 
     @showval process_num = 1  (process_num == 1 ? "吸い出しなし"     :
                                process_num == 2 ? "貫入中に吸い出し" :
@@ -77,7 +76,7 @@ function main()
         total_time *= 2
     end
 
-    grid = Grid(NodeState, LinRange(0:dx:6.0), LinRange(0:dx:40.0))
+    grid = Grid(NodeState, LinRange(0:dx:1.5), LinRange(0:dx:6.0))
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
     space = MPSpace(WLS{1}(CubicBSpline{2}()), grid, pointstate.x)
     elastic = LinearElastic(E = E, ν = ν)
@@ -120,7 +119,7 @@ function main()
 
     # Output files
     ## proj
-    proj_dir = joinpath("pile_finemesh.tmp")
+    proj_dir = joinpath("pile.tmp")
     mkpath(proj_dir)
 
     ## paraview
@@ -142,7 +141,7 @@ function main()
     cp(@__FILE__, joinpath(proj_dir, "main.jl"), force = true)
 
     t = 0.0
-    logger = Logger(0.0:0.05:total_time; progress = true)
+    logger = Logger(0.0:0.02:total_time; progress = true)
     # logger = Logger(0.0:0.0025:0.01; progress = true)
     while !isfinised(logger, t)
         reinit!(space, grid, pointstate.x, exclude = x -> in(x, pile))
@@ -151,7 +150,7 @@ function main()
         # vc = soundspeed(model.elastic.K, model.elastic.G, ρ_min)
         # dt = max(0.5 * minimum(gridsteps(grid)) / vc, 1e-5)
         # @show dt = 0.4*minimum(gridsteps(grid)) / vc
-        dt = 1.0e-4
+        dt = 0.4e-5
 
         default_point_to_grid!(grid, pointstate, space, coord_system)
         @. grid.state.v += (grid.state.f / grid.state.m) * dt
@@ -206,9 +205,9 @@ function main()
                     end
                     vtk_grid(vtm, pile)
                     # vtk_grid(vtm, grid) do vtk
-                        # vtk_point_data(vtk, vec(vᵢ), "nodal velocity")
-                        # vtk_point_data(vtk, vec(vᵢ_before_contact), "nodal velocity before contact")
-                        # vtk_point_data(vtk, vec(fcᵢ), "nodal contact force")
+                        # vtk_point_data(vtk, vec(grid.state.m), "mass")
+                        # vtk_point_data(vtk, vec(grid.state.V), "volume")
+                        # vtk_point_data(vtk, vec(grid.state.ρ), "density")
                     # end
                     pvd[t] = vtm
                 end
