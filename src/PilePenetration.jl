@@ -46,7 +46,7 @@ end
 function main()
     coord_system = :axisymmetric
 
-    res = 5 # 数値が高いほど解像度が大きい
+    res = 2 # 数値が高いほど解像度が大きい
     @showval ρ₀ = 1.6e3      "乾燥密度"          "kg/m³"
     @showval g = 9.81        "重力加速度"        "m/s²"
     @showval h = 3           "地盤高さ"          "m"
@@ -55,8 +55,7 @@ function main()
     @showval ν = 0.333       "ポアソン比"
     @showval E = 1e6         "ヤング係数"        "Pa"
     @showval μ = 0.53         "摩擦係数"
-    # @showval dx = 0.025/res   "メッシュの幅"      "m"
-    @showval dx = 2.5e-3   "メッシュの幅"      "m"
+    @showval dx = 0.01/res   "メッシュの幅"      "m"
 
     @showval thick = 2dx           "肉厚"            "m"
     @showval D_i = 0.15            "杭頭径（内径）"  "m"
@@ -76,7 +75,7 @@ function main()
         total_time *= 2
     end
 
-    grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), LinRange(0:dx:1.5), LinRange(0:dx:6.0))
+    grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), LinRange(0:dx:1.0), LinRange(0:dx:6.0))
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
     space = MPSpace(grid, pointstate.x)
     elastic = LinearElastic(E = E, ν = ν)
@@ -140,7 +139,7 @@ function main()
     ## copy this file
     cp(@__FILE__, joinpath(proj_dir, "main.jl"), force = true)
 
-    logger = Logger(0.0:0.02:total_time; progress = true)
+    logger = Logger(0.0:0.04:total_time; progress = true)
 
     sch = Poingr.Scheduler(grid, pointstate)
     while !issynced(sch) || !isfinised(logger, currenttime(sch))
@@ -207,11 +206,12 @@ function main()
                         vtk_point_data(vtk, @dot_lazy(pstate.m / (pstate.V0 * det(pstate.F))), "density")
                     end
                     vtk_grid(vtm, pile)
-                    # vtk_grid(vtm, grid) do vtk
+                    vtk_grid(vtm, grid) do vtk
+                        vtk["dt"] = Poingr.paint_timesteps(sch)
                         # vtk_point_data(vtk, vec(vᵢ), "nodal velocity")
                         # vtk_point_data(vtk, vec(vᵢ_before_contact), "nodal velocity before contact")
                         # vtk_point_data(vtk, vec(fcᵢ), "nodal contact force")
-                    # end
+                    end
                     pvd[t] = vtm
                 end
             end
