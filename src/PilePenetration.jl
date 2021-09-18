@@ -70,7 +70,7 @@ function main()
     grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), LinRange(0:dx:1.00), LinRange(0:dx:6.0))
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
     cache = MPCache(grid, pointstate.x)
-    elastic = LinearElastic(E = E, ν = ν)
+    elastic = LinearElastic(; E, ν)
     # elastic = SoilElastic(κ = 0.014, α = 40.0, p_ref = -1.0, μ_ref = 10.0)
     model = DruckerPrager(elastic, :circumscribed, c = 0, ϕ = ϕ, ψ = ψ)
 
@@ -146,7 +146,7 @@ function main()
             0.5 * minimum(gridsteps(grid)) / vc
         end
 
-        update!(cache, grid, pointstate.x, exclude = in(pile))
+        update!(cache, grid, pointstate.x)
         P2G!(grid, pointstate, cache, pile, v_pile, dt, μ, coord_system)
         for bd in eachboundary(grid)
             @. grid.state.v[bd.indices] = boundary_velocity(grid.state.v[bd.indices], bd.n)
@@ -197,32 +197,24 @@ end
 function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Polygon, v_pile, dt, μ, coord_system)
     default_point_to_grid!(grid, pointstate, cache, coord_system)
     @. grid.state.v += (grid.state.f / grid.state.m) * dt
-    if any(cache.nearsurface)
-        inds = findall(1:length(pointstate)) do p
-            @inbounds begin
-                cache.nearsurface[p] || return false
-                distanceto(pile, pointstate.x[p], pointstate.h[p]) !== nothing
-            end
-        end
-        contacted_pointstate = pointstate[inds]
-        contacted_pointstate_x = map(1:length(contacted_pointstate)) do p
-            @inbounds contacted_pointstate.x[p] + distanceto(pile, contacted_pointstate.x[p], contacted_pointstate.h[p])
-        end
-        point_to_grid!((grid.state.d, grid.state.vᵣ), grid, contacted_pointstate_x; exclude = in(pile)) do it, p, i
-            @_inline_meta
-            @_propagate_inbounds_meta
-            N = it.N
-            w = it.w
-            vₚ = contacted_pointstate.v[p]
-            dₚ = contact_distance(pile, contacted_pointstate.x[p], contacted_pointstate.h[p])
-            d = N * dₚ
-            vᵣ = w * (vₚ - v_pile)
-            d, vᵣ
-        end
-        @. grid.state.vᵣ /= grid.state.w
-        @. grid.state.fc = contact_force(grid.state.vᵣ, grid.state.d, grid.state.m, dt, μ)
-        @. grid.state.v += (grid.state.fc / grid.state.m) * dt
+    contacted_pointstate = filter(p -> distanceto(pile, p.x, p.h) !== nothing, pointstate)
+    contacted_pointstate_x = map(1:length(contacted_pointstate)) do p
+        @inbounds contacted_pointstate.x[p] + distanceto(pile, contacted_pointstate.x[p], contacted_pointstate.h[p])
     end
+    point_to_grid!((grid.state.d, grid.state.vᵣ), grid, contacted_pointstate_x) do it, p, i
+        @_inline_meta
+        @_propagate_inbounds_meta
+        N = it.N
+        w = it.w
+        vₚ = contacted_pointstate.v[p]
+        dₚ = contact_distance(pile, contacted_pointstate.x[p], contacted_pointstate.h[p])
+        d = N * dₚ
+        vᵣ = w * (vₚ - v_pile)
+        d, vᵣ
+    end
+    @. grid.state.vᵣ /= grid.state.w
+    @. grid.state.fc = contact_force(grid.state.vᵣ, grid.state.d, grid.state.m, dt, μ)
+    @. grid.state.v += (grid.state.fc / grid.state.m) * dt
 end
 
 function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, model::DruckerPrager, pile::Polygon, dt, coord_system)
