@@ -45,18 +45,18 @@ struct PointState
 end
 
 function main()
-    coord_system = :axisymmetric
+    coord_system = Axisymmetric()
 
     res = 3 # 数値が高いほど解像度が大きい
-    @showval ρ₀ = 1.5e3      "乾燥密度"          "kg/m³"
-    @showval g = 9.81        "重力加速度"        "m/s²"
-    @showval h = 3           "地盤高さ"          "m"
-    @showval ϕ = 38          "内部摩擦角"        "˚"
-    @showval ψ = 0           "ダイレタンシー角"  "˚"
-    @showval ν = 0.333       "ポアソン比"
-    @showval E = 10e6         "ヤング係数"        "Pa"
-    @showval μ = tan(deg2rad(ϕ))*2/3    "摩擦係数"
-    @showval dx = 0.01/res   "メッシュの幅"      "m"
+    @showval ρ₀ = 1.55e3               "乾燥密度"          "kg/m³"
+    @showval g = 9.81                  "重力加速度"        "m/s²"
+    @showval h = 3                     "地盤高さ"          "m"
+    @showval ϕ = 38                    "内部摩擦角"        "˚"
+    @showval ψ = 0                     "ダイレタンシー角"  "˚"
+    @showval ν = 0.333                 "ポアソン比"
+    @showval E = 10e6                  "ヤング係数"        "Pa"
+    @showval μ = tan(deg2rad(ϕ))*2/3   "摩擦係数"
+    @showval dx = 0.01/res             "メッシュの幅"      "m"
 
     @showval thick = 2dx           "肉厚"            "m"
     @showval D_i = 0.15            "杭頭径（内径）"  "m"
@@ -64,25 +64,15 @@ function main()
     @showval taper_length = 0.715  "テーパー長"      "m"
     @showval taper_angle = atan((D_i-d_i) / 2taper_length) |> rad2deg "テーパー角" "˚"
 
-    @showval vy_pile = 0.5         "貫入速度"        "m/s"
-    @showval total_time = 4.0     "貫入時間"        "s"
+    @showval vy_pile = 0.5       "貫入速度"        "m/s"
+    @showval total_time = 4.0    "貫入時間"        "s"
 
-    @showval process_num = 1  (process_num == 1 ? "吸い出しなし"     :
-                               process_num == 2 ? "貫入中に吸い出し" :
-                               process_num == 3 ? "貫入後に吸い出し" : error())
-    @showval excavate_height = 1*D_i "吸い出し高さ" "m"
-    if process_num == 3
-        penetration_time = total_time
-        total_time *= 2
-    end
-
-    grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), LinRange(0:dx:0.75), LinRange(0:dx:6.0))
+    grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), LinRange(0:dx:1.00), LinRange(0:dx:6.0))
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
-    space = MPSpace(grid, pointstate.x)
+    cache = MPCache(grid, pointstate.x)
     elastic = LinearElastic(E = E, ν = ν)
     # elastic = SoilElastic(κ = 0.014, α = 40.0, p_ref = -1.0, μ_ref = 10.0)
     model = DruckerPrager(elastic, :circumscribed, c = 0, ϕ = ϕ, ψ = ψ)
-    Dinv = inv(model.elastic.D)
 
     @. pointstate.m = ρ₀ * pointstate.V0
     @. pointstate.F = one(SecondOrderTensor{3,Float64})
@@ -92,12 +82,10 @@ function main()
         y = pointstate.x[p][2]
         σ_y = -ρ₀ * g * (h - y)
         σ_x = σ_y * ν / (1 - ν)
-        # σ_x = σ_y * 0.5
         pointstate.σ[p] = (@Mat [σ_x 0.0 0.0
                                  0.0 σ_y 0.0
                                  0.0 0.0 σ_x]) |> symmetric
         pointstate.σ0[p] = pointstate.σ[p]
-        # pointstate.σ[p] = -100 * one(SymmetricSecondOrderTensor{3})
     end
 
     R_i = D_i / 2 # radius
@@ -147,110 +135,23 @@ function main()
 
     logger = Logger(0.0:0.04:total_time; progress = true)
 
-    sch = Poingr.Scheduler(grid, pointstate#=; precise_near_surface = true=#)
+    sch = AsyncScheduler(grid, pointstate; precise_near_surface = true)
     while !issynced(sch) || !isfinised(logger, currenttime(sch))
 
-        Poingr.updatetimestep!(sch, grid; exclude = in(pile)) do p
+        updatetimestep!(sch, grid; exclude = in(pile)) do p
             ρ = p.m / (p.V0 * det(p.F))
             vc = soundspeed(elastic.K, elastic.G, ρ)
             # vc = soundspeed(Poingr.bulkmodulus(elastic, p.σ), Poingr.shearmodulus(elastic, p.σ), ρ)
-            minimum(gridsteps(grid)) / vc
+            0.5 * minimum(gridsteps(grid)) / vc
         end
 
         dt = asyncstep!(sch, grid) do pstate, dt
-            reinit!(space, grid, pstate.x, exclude = x -> in(x, pile))
-            default_point_to_grid!(grid, pstate, space, coord_system)
-            @. grid.state.v += (grid.state.f / grid.state.m) * dt
-            if any(space.nearsurface)
-                contactedinds = findall(1:length(pstate)) do p
-                    space.nearsurface[p] || return false
-                    distanceto(pile, pstate.x[p], pstate.h[p]) !== nothing
-                end
-                pstate_contacted = pstate[contactedinds]
-                pstate_contacted_x = map(1:length(pstate_contacted)) do p
-                    pstate_contacted.x[p] + distanceto(pile, pstate_contacted.x[p], pstate_contacted.h[p])
-                end
-                point_to_grid!((grid.state.d, grid.state.vᵣ), grid, pstate_contacted_x; exclude = in(pile)) do it, p, i
-                    @_inline_meta
-                    @_propagate_inbounds_meta
-                    N = it.N
-                    w = it.w
-                    vₚ = pstate_contacted.v[p]
-                    dₚ = contact_distance(pile, pstate_contacted.x[p], pstate_contacted.h[p])
-                    d = N * dₚ
-                    vᵣ = w * (vₚ - v_pile)
-                    d, vᵣ
-                end
-                @. grid.state.vᵣ /= grid.state.w
-                @. grid.state.fc = contact_force(grid.state.vᵣ, grid.state.d, grid.state.m, dt, μ)
-                @. grid.state.v += (grid.state.fc / grid.state.m) * dt
-            end
-
+            update!(cache, grid, pstate.x, exclude = in(pile))
+            P2G!(grid, pstate, cache, pile, v_pile, dt, μ, coord_system)
             for bd in eachboundary(grid)
                 @. grid.state.v[bd.indices] = boundary_velocity(grid.state.v[bd.indices], bd.n)
             end
-
-            #=
-            @inbounds Threads.@threads for p in eachindex(pstate)
-                Cₚ = pstate.C[p]
-                xₚ = pstate.x[p]
-                vₚ = Cₚ ⋅ p0
-                ∇vₚ = Poingr.velocity_gradient(coord_system, xₚ, vₚ, Cₚ ⋅ ∇p0)
-                Fₚ = pstate.F[p]
-                V0 = pstate.V0[p]
-                pstate.v[p] = vₚ
-                pstate.∇v[p] = ∇vₚ
-                Fₚ = Fₚ + dt*(∇vₚ ⋅ Fₚ)
-
-                ρ = pstate.m[p] / (V0 * det(Fₚ))
-                if ρ < 1.3e3
-                    V = pstate.m[p] / 1.3e3
-                    Fₚ = (V/V0)^(1/3) * one(Fₚ)
-                else
-                    dϵ = symmetric(dt * ∇vₚ)
-                    pₚ = mean(pstate.p[p]*I + model.elastic.D ⊡ vol(dϵ))
-                    pstate.σ[p] = compute_stress(model, pstate.σ[p], pₚ, dϵ)
-                    pstate.p[p] = pₚ
-                end
-
-                pstate.F[p] = Fₚ
-                pstate.x[p] = xₚ + vₚ * dt
-            end
-            =#
-
-            default_grid_to_point!(pstate, grid, space, dt, coord_system)
-            @inbounds Threads.@threads for p in eachindex(pstate)
-                #=
-                Fₚ = pstate.F[p]
-                V0 = pstate.V0[p]
-                ρ = pstate.m[p] / (V0 * det(Fₚ))
-                if ρ < 1.3e3
-                    V = pstate.m[p] / 1.3e3
-                    pstate.F[p] = (V/V0)^(1/3) * one(Fₚ)
-                    pstate.σ[p] = zero(pstate.σ[p])
-                    # pstate.σ[p] = update_stress(model.elastic, zero(pstate.σ[p]), symmetric(pstate.F[p]-one(Fₚ)))
-                    # pstate.F[p] = one(Fₚ)
-                else
-                    pstate.σ[p] = stress(model, pstate.σ[p], pstate.∇v[p], dt)
-                end
-                =#
-                # pstate.σ[p] = stress(model, pstate.σ[p], pstate.∇v[p], dt)
-                # @show mean(pstate.σ[p])
-                # @show mean(update_stress(model.elastic, pstate.σ0[p], symmetric(pstate.F[p] - I)))
-                # if !isapprox(mean(pstate.σ[p]), mean(update_stress(model.elastic, pstate.σ0[p], symmetric(pstate.F[p] - I))); atol = 1e-3)
-                    # @show "hi"
-                # end
-
-                σ = update_stress(model, pstate.σ[p], symmetric(pstate.∇v[p]) * dt)
-                σ = Poingr.jaumann_stress(σ, pstate.σ[p], pstate.∇v[p], dt)
-                if mean(σ) > 0
-                    σ = zero(σ)
-                    ϵv = tr(Dinv ⊡ (σ - pstate.σ0[p]))
-                    J = exp(ϵv)
-                    pstate.F[p] = J^(1/3) * one(pstate.F[p])
-                end
-                pstate.σ[p] = σ
-            end
+            G2P!(pstate, grid, cache, model, pile, dt, coord_system)
         end
         translate!(pile, v_pile * dt)
 
@@ -278,36 +179,69 @@ function main()
                         vtk["dt"] = Poingr.paint_timesteps(sch)
                         vtk_point_data(vtk, vec(grid.state.f), "nodal force")
                         vtk_point_data(vtk, vec(grid.state.fc), "nodal contact force")
-                        # vtk_point_data(vtk, vec(vᵢ_before_contact), "nodal velocity before contact")
-                        # vtk_point_data(vtk, vec(fcᵢ), "nodal contact force")
                     end
                     pvd[t] = vtm
                 end
             end
 
             tip, inside, outside = extract_contact_forces(grid.state.fc, grid, pile)
-
             open(csv_file, "a") do io
                 disp = norm(centroid(pile) - pile_center_0)
                 force = -sum(grid.state.fc)[2] * 2π
                 disp_inside_pile = -(find_ground_pos(pstate.x) - ground_pos0)
                 writedlm(io, [disp force disp_inside_pile sum(@view tip[:,3]) sum(@view inside[:,3]) sum(@view outside[:,3])], ',')
             end
-
             open(io -> writedlm(io, tip, ','), joinpath(proj_dir, "force_tip", "force_tip_$(logindex(logger)).csv"), "w")
             open(io -> writedlm(io, inside, ','), joinpath(proj_dir, "force_inside", "force_inside_$(logindex(logger)).csv"), "w")
             open(io -> writedlm(io, outside, ','), joinpath(proj_dir, "force_outside", "force_outside_$(logindex(logger)).csv"), "w")
+        end
+    end
+end
 
-            if process_num == 2 || process_num == 3
-                if process_num == 2
-                    height = (tip_height_0 - vy_pile * t) + excavate_height
-                elseif process_num == 3
-                    bottom_target = (tip_height_0 - vy_pile * penetration_time) + excavate_height
-                    bottom_current = (h - bottom_target) / (total_time-penetration_time) * (t - penetration_time)
-                    height = h - bottom_current
-                end
+function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Polygon, v_pile, dt, μ, coord_system)
+    default_point_to_grid!(grid, pointstate, cache, coord_system)
+    @. grid.state.v += (grid.state.f / grid.state.m) * dt
+    if any(cache.nearsurface)
+        inds = findall(1:length(pointstate)) do p
+            @inbounds begin
+                cache.nearsurface[p] || return false
+                distanceto(pile, pointstate.x[p], pointstate.h[p]) !== nothing
             end
         end
+        contacted_pointstate = pointstate[inds]
+        contacted_pointstate_x = map(1:length(contacted_pointstate)) do p
+            @inbounds contacted_pointstate.x[p] + distanceto(pile, contacted_pointstate.x[p], contacted_pointstate.h[p])
+        end
+        point_to_grid!((grid.state.d, grid.state.vᵣ), grid, contacted_pointstate_x; exclude = in(pile)) do it, p, i
+            @_inline_meta
+            @_propagate_inbounds_meta
+            N = it.N
+            w = it.w
+            vₚ = contacted_pointstate.v[p]
+            dₚ = contact_distance(pile, contacted_pointstate.x[p], contacted_pointstate.h[p])
+            d = N * dₚ
+            vᵣ = w * (vₚ - v_pile)
+            d, vᵣ
+        end
+        @. grid.state.vᵣ /= grid.state.w
+        @. grid.state.fc = contact_force(grid.state.vᵣ, grid.state.d, grid.state.m, dt, μ)
+        @. grid.state.v += (grid.state.fc / grid.state.m) * dt
+    end
+end
+
+function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, model::DruckerPrager, pile::Polygon, dt, coord_system)
+    Dinv = inv(model.elastic.D)
+    default_grid_to_point!(pointstate, grid, cache, dt, coord_system)
+    @inbounds Threads.@threads for p in eachindex(pointstate)
+        σ = update_stress(model, pointstate.σ[p], symmetric(pointstate.∇v[p]) * dt)
+        σ = Poingr.jaumann_stress(σ, pointstate.σ[p], pointstate.∇v[p], dt)
+        if mean(σ) > 0
+            σ = zero(σ)
+            ϵv = tr(Dinv ⊡ (σ - pointstate.σ0[p]))
+            J = exp(ϵv)
+            pointstate.F[p] = J^(1/3) * one(pointstate.F[p])
+        end
+        pointstate.σ[p] = σ
     end
 end
 
@@ -345,24 +279,20 @@ function extract_contact_forces(fcᵢ, grid, pile)
     map(reshape_data, (tip, inside, outside))
 end
 
-function stress(model, σₚ, ∇vₚ, dt)
-    σ = update_stress(model, σₚ, symmetric(∇vₚ) * dt)
-    σ = Poingr.jaumann_stress(σ, σₚ, ∇vₚ, dt)
-    mean(σ) > 0 ? zero(σ) : σ
-end
+threshold(l::Vec) = mean(l) / 2 * 2
 
 function distanceto(poly::Polygon, x::Vec{dim}, l::Vec{dim}) where {dim}
-    threshold = mean(l) / 2 * 2
-    distance(poly, x, threshold)
+    thresh = threshold(l)
+    distance(poly, x, thresh)
 end
 
 function contact_distance(poly::Polygon, x::Vec{dim, T}, l::Vec{dim, T}) where {dim, T}
-    threshold = mean(l) / 2 * 2
-    d = distance(poly, x, threshold)
+    thresh = threshold(l)
+    d = distance(poly, x, thresh)
     d === nothing && return zero(Vec{dim, T})
     norm_d = norm(d)
     n = d / norm_d
-    (threshold - norm_d) * n
+    (thresh - norm_d) * n
 end
 
 function contact_force(vᵣ::Vec, d::Vec, m::Real, dt::Real, μ::Real)
@@ -389,8 +319,7 @@ end
 
 #=
 using Plots, DelimitedFiles
-plot((arr = readdlm("pile.tmp/history.csv", ',', skipstart=1); @show size(arr, 1); (arr[:,1], arr[:,2])), legend = false, xlims = (0,2), ylims = (0,60e3))
-plot((arr = readdlm("pile.tmp/history.csv", ',', skipstart=1); @show size(arr, 1); (arr[:,1], arr[:,[2,4,5,6]])), legend = false, xlims = (0,2), ylims = (0,60e3))
+julia> plot((arr = readdlm("pile.tmp/history.csv", ',', skipstart=1); @show size(arr, 1); (arr[:,1], arr[:,[2,4,5,6]]))..., label = ["total" "tip" "inside" "outside"], xlims = (0,2), ylims = (0,60e3))
 =#
 
 end # module
