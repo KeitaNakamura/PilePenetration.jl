@@ -28,6 +28,7 @@ struct NodeState
     v::Vec{2, Float64}
     vᵣ::Vec{2, Float64}
     w_pile::Float64
+    J::Float64
 end
 
 struct PointState
@@ -43,6 +44,7 @@ struct PointState
     C::Mat{2, 3, Float64, 6}
     side_length::Vec{2, Float64}
     index::Int
+    J::Float64
 end
 
 function main()
@@ -223,9 +225,23 @@ end
 function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, model::DruckerPrager, pile::Polygon, dt, coord_system)
     Dinv = inv(model.elastic.D)
     default_grid_to_point!(pointstate, grid, cache, dt, coord_system)
+    point_to_grid!(grid.state.J, cache) do it, p, i
+        @_inline_meta
+        @_propagate_inbounds_meta
+        it.w * det(pointstate.F[p])
+    end
+    @dot_threads grid.state.J /= grid.state.w
+    grid_to_point!(pointstate.J, cache) do it, i, p
+        @_inline_meta
+        @_propagate_inbounds_meta
+        it.N * grid.state.J[i]
+    end
     @inbounds Threads.@threads for p in eachindex(pointstate)
-        σ = update_stress(model, pointstate.σ[p], symmetric(pointstate.∇v[p]) * dt)
-        σ = Poingr.jaumann_stress(σ, pointstate.σ[p], pointstate.∇v[p], dt)
+        ∇vₚ = pointstate.∇v[p]
+        dϵ = symmetric(dt * ∇vₚ)
+        pₚ = mean(pointstate.σ0[p] + model.elastic.D ⊡ (log(pointstate.J[p]) / 3 * one(dϵ)))
+        σ = compute_stress(model, pointstate.σ[p], pₚ, dϵ)
+        σ = Poingr.jaumann_stress(σ, pointstate.σ[p], ∇vₚ, dt)
         if mean(σ) > 0
             σ = zero(σ)
             ϵv = tr(Dinv ⊡ (σ - pointstate.σ0[p]))
@@ -301,6 +317,20 @@ function boundary_velocity(v::Vec, n::Vec)
     else
         v + Contact(:slip)(v, n)
     end
+end
+
+function compute_stress(model::DruckerPrager, σ::SymmetricSecondOrderTensor{3}, p::Real, dϵ::SymmetricSecondOrderTensor{3})::typeof(dϵ)
+    # compute the stress at the elastic trial state
+    De = model.elastic.D
+    σ_trial = p*I + dev(σ) + De ⊡ dev(dϵ)
+    # compute the yield function at the elastic trial state
+    dfdσ, f_trial = gradient(σ_trial -> Poingr.yield_function(model, σ_trial), σ_trial, :all)
+    f_trial ≤ 0.0 && return σ_trial
+    # compute the increment of the plastic multiplier
+    dgdσ = Poingr.plastic_flow(model, σ_trial)
+    Δγ = f_trial / (dev(dgdσ) ⊡ De ⊡ dev(dfdσ))
+    # compute the stress
+    σ_trial - Δγ * (De ⊡ dev(dgdσ))
 end
 
 #=
