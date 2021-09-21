@@ -55,7 +55,7 @@ function main()
     @showval ϕ = 38                    "内部摩擦角"        "˚"
     @showval ψ = 0                     "ダイレタンシー角"  "˚"
     @showval ν = 0.333                 "ポアソン比"
-    @showval E = 10e6                  "ヤング係数"        "Pa"
+    @showval E = 1e6                   "ヤング係数"        "Pa"
     @showval μ = tan(deg2rad(ϕ))*2/3   "摩擦係数"
     @showval dx = 0.01/res             "メッシュの幅"      "m"
 
@@ -65,8 +65,8 @@ function main()
     @showval taper_length = 0.715  "テーパー長"      "m"
     @showval taper_angle = atan((D_i-d_i) / 2taper_length) |> rad2deg "テーパー角" "˚"
 
-    @showval vy_pile = 0.5       "貫入速度"        "m/s"
-    @showval total_time = 4.0    "貫入時間"        "s"
+    @showval vy_pile = 0.2       "貫入速度"        "m/s"
+    @showval total_time = 10.0    "貫入時間"        "s"
 
     grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), 0:dx:1.0, 0:dx:6.0)
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
@@ -135,7 +135,7 @@ function main()
     ## copy this file
     cp(@__FILE__, joinpath(proj_dir, "main.jl"), force = true)
 
-    logger = Logger(0.0:0.04:total_time; progress = true)
+    logger = Logger(0.0:0.05:total_time; progress = true)
 
     t = 0.0
     while !isfinised(logger, t)
@@ -144,7 +144,7 @@ function main()
             ρ = p.m / (p.V0 * det(p.F))
             vc = soundspeed(elastic.K, elastic.G, ρ)
             # vc = soundspeed(Poingr.bulkmodulus(elastic, p.σ), Poingr.shearmodulus(elastic, p.σ), ρ)
-            0.5 * minimum(gridsteps(grid)) / vc
+            0.4 * minimum(gridsteps(grid)) / vc
         end
 
         update!(cache, grid, pointstate.x)
@@ -268,7 +268,7 @@ function extract_contact_forces(fcᵢ, grid, pile)
     map(reshape_data, (tip, inside, outside))
 end
 
-threshold(l::Vec) = mean(l) / 2 * 2
+threshold(l::Vec) = mean(l) / 2 * 1.5
 
 function distanceto(poly::Polygon, x::Vec{dim}, l::Vec{dim}) where {dim}
     thresh = threshold(l)
