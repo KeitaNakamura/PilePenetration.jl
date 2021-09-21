@@ -28,6 +28,7 @@ struct NodeState
     v::Vec{2, Float64}
     v_pile::Vec{2, Float64}
     vᵣ::Vec{2, Float64}
+    w_pile::Float64
 end
 
 struct PointState
@@ -201,7 +202,7 @@ function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Poly
     contacted_pointstate_x = map(1:length(contacted_pointstate)) do p
         @inbounds contacted_pointstate.x[p] + distanceto(pile, contacted_pointstate.x[p], contacted_pointstate.h[p])
     end
-    point_to_grid!((grid.state.fcn, grid.state.vᵣ), grid, contacted_pointstate_x) do it, p, i
+    point_to_grid!((grid.state.fcn, grid.state.vᵣ, grid.state.w_pile), grid, contacted_pointstate_x) do it, p, i
         @_inline_meta
         @_propagate_inbounds_meta
         N = it.N
@@ -210,9 +211,9 @@ function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Poly
         fcnₚ = contact_normal_force(pile, contacted_pointstate.x[p], contacted_pointstate.m[p], contacted_pointstate.h[p], dt)
         fcn = N * fcnₚ
         vᵣ = w * (vₚ - v_pile)
-        fcn, vᵣ
+        fcn, vᵣ, w
     end
-    @. grid.state.vᵣ /= grid.state.w
+    @. grid.state.vᵣ /= grid.state.w_pile
     @. grid.state.fc = contact_force(grid.state.vᵣ, grid.state.fcn, grid.state.m, dt, μ)
     @. grid.state.v += (grid.state.fc / grid.state.m) * dt
 end
