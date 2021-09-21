@@ -22,7 +22,7 @@ end
 struct NodeState
     f::Vec{2, Float64}
     fc::Vec{2, Float64}
-    d::Vec{2, Float64}
+    fcn::Vec{2, Float64}
     w::Float64
     m::Float64
     v::Vec{2, Float64}
@@ -201,19 +201,19 @@ function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Poly
     contacted_pointstate_x = map(1:length(contacted_pointstate)) do p
         @inbounds contacted_pointstate.x[p] + distanceto(pile, contacted_pointstate.x[p], contacted_pointstate.h[p])
     end
-    point_to_grid!((grid.state.d, grid.state.vᵣ), grid, contacted_pointstate_x) do it, p, i
+    point_to_grid!((grid.state.fcn, grid.state.vᵣ), grid, contacted_pointstate_x) do it, p, i
         @_inline_meta
         @_propagate_inbounds_meta
         N = it.N
         w = it.w
         vₚ = contacted_pointstate.v[p]
-        dₚ = contact_distance(pile, contacted_pointstate.x[p], contacted_pointstate.h[p])
-        d = N * dₚ
+        fcnₚ = contact_normal_force(pile, contacted_pointstate.x[p], contacted_pointstate.m[p], contacted_pointstate.h[p], dt)
+        fcn = N * fcnₚ
         vᵣ = w * (vₚ - v_pile)
-        d, vᵣ
+        fcn, vᵣ
     end
     @. grid.state.vᵣ /= grid.state.w
-    @. grid.state.fc = contact_force(grid.state.vᵣ, grid.state.d, grid.state.m, dt, μ)
+    @. grid.state.fc = contact_force(grid.state.vᵣ, grid.state.fcn, grid.state.m, dt, μ)
     @. grid.state.v += (grid.state.fc / grid.state.m) * dt
 end
 
@@ -283,17 +283,21 @@ function contact_distance(poly::Polygon, x::Vec{dim, T}, l::Vec{dim, T}) where {
     (thresh - norm_d) * n
 end
 
-function contact_force(vᵣ::Vec, d::Vec, m::Real, dt::Real, μ::Real)
+function contact_normal_force(poly::Polygon, x::Vec{dim, T}, m::T, l::Vec{dim, T}, dt::T) where {dim, T}
     ξ = 0.5
-    iszero(d) && return zero(d)
-    n = d / norm(d)
-    vᵣ_n = (vᵣ ⋅ n) * n
-    vᵣ_t = vᵣ - vᵣ_n
-    f_n = (1-ξ) * m * (2d/dt) / dt
-    # f_n = 1e7 * d
-    # f_n = (1-ξ) * m * (d/dt + vᵣ_n) / dt
-    aᵣ_t = vᵣ_t / dt
-    f_t = m * aᵣ_t
+    thresh = threshold(l)
+    d = distance(poly, x, thresh)
+    d === nothing && return zero(Vec{dim, T})
+    norm_d = norm(d)
+    n = d / norm_d
+    (1-ξ) * 2m/dt^2 * (thresh - norm_d) * n
+end
+
+function contact_force(vᵣ::Vec, f_n::Vec, m::Real, dt::Real, μ::Real)
+    iszero(f_n) && return zero(f_n)
+    n = f_n / norm(f_n)
+    vᵣ_t = vᵣ - (vᵣ ⋅ n) * n
+    f_t = (m / dt) * vᵣ_t
     Contact(:friction, μ, sep = true)(f_n + f_t, n)
 end
 
