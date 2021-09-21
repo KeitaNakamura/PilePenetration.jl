@@ -67,7 +67,7 @@ function main()
     @showval vy_pile = 0.5       "貫入速度"        "m/s"
     @showval total_time = 4.0    "貫入時間"        "s"
 
-    grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), LinRange(0:dx:1.00), LinRange(0:dx:6.0))
+    grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), 0:dx:1.0, 0:dx:6.0)
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
     cache = MPCache(grid, pointstate.x)
     elastic = LinearElastic(; E, ν)
@@ -307,7 +307,7 @@ end
 
 #=
 using Plots, DelimitedFiles
-julia> plot((arr = readdlm("pile.tmp/history.csv", ',', skipstart=1); @show size(arr, 1); (arr[:,1], arr[:,[2,4,5,6]]))..., label = ["total" "tip" "inside" "outside"], xlims = (0,2), ylims = (0,60e3))
+plot((arr = readdlm("pile.tmp/history.csv", ',', skipstart=1); @show size(arr, 1); (arr[:,1], arr[:,[2,4,5,6]]))..., label = ["total" "tip" "inside" "outside"], xlims = (0,2), ylims = (0,60e3))
 =#
 
 end # module
