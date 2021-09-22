@@ -48,14 +48,14 @@ end
 function main()
     coord_system = Axisymmetric()
 
-    res = 3 # 数値が高いほど解像度が大きい
+    res = 4 # 数値が高いほど解像度が大きい
     @showval ρ₀ = 1.55e3               "乾燥密度"          "kg/m³"
     @showval g = 9.81                  "重力加速度"        "m/s²"
     @showval h = 3                     "地盤高さ"          "m"
     @showval ϕ = 38                    "内部摩擦角"        "˚"
     @showval ψ = 0                     "ダイレタンシー角"  "˚"
     @showval ν = 0.333                 "ポアソン比"
-    @showval E = 1e6                   "ヤング係数"        "Pa"
+    @showval E = 2.0e6                 "ヤング係数"        "Pa"
     @showval μ = tan(deg2rad(ϕ))*2/3   "摩擦係数"
     @showval dx = 0.01/res             "メッシュの幅"      "m"
 
@@ -65,10 +65,10 @@ function main()
     @showval taper_length = 0.715  "テーパー長"      "m"
     @showval taper_angle = atan((D_i-d_i) / 2taper_length) |> rad2deg "テーパー角" "˚"
 
-    @showval vy_pile = 0.2       "貫入速度"        "m/s"
-    @showval total_time = 10.0    "貫入時間"        "s"
+    @showval vy_pile = 0.4       "貫入速度"        "m/s"
+    @showval total_time = 5.0    "貫入時間"        "s"
 
-    grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), 0:dx:1.0, 0:dx:6.0)
+    grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), 0:dx:0.75, 0:dx:6.0)
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
     cache = MPCache(grid, pointstate.x)
     elastic = LinearElastic(; E, ν)
@@ -144,7 +144,7 @@ function main()
             ρ = p.m / (p.V0 * det(p.F))
             vc = soundspeed(elastic.K, elastic.G, ρ)
             # vc = soundspeed(Poingr.bulkmodulus(elastic, p.σ), Poingr.shearmodulus(elastic, p.σ), ρ)
-            0.4 * minimum(gridsteps(grid)) / vc
+            0.5 * minimum(gridsteps(grid)) / vc
         end
 
         update!(cache, grid, pointstate.x)
@@ -197,25 +197,22 @@ end
 
 function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Polygon, v_pile, dt, μ, coord_system)
     default_point_to_grid!(grid, pointstate, cache, coord_system)
-    @. grid.state.v += (grid.state.f / grid.state.m) * dt
-    contacted_pointstate = filter(p -> distanceto(pile, p.x, p.h) !== nothing, pointstate)
-    contacted_pointstate_x = map(1:length(contacted_pointstate)) do p
-        @inbounds contacted_pointstate.x[p] + distanceto(pile, contacted_pointstate.x[p], contacted_pointstate.h[p])
-    end
-    point_to_grid!((grid.state.fcn, grid.state.vᵣ, grid.state.w_pile), grid, contacted_pointstate_x) do it, p, i
+    @dot_threads grid.state.v += (grid.state.f / grid.state.m) * dt
+    mask = @. distanceto($Ref(pile), pointstate.x, pointstate.h) !== nothing
+    point_to_grid!((grid.state.fcn, grid.state.vᵣ, grid.state.w_pile), cache, mask) do it, p, i
         @_inline_meta
         @_propagate_inbounds_meta
         N = it.N
         w = it.w
-        vₚ = contacted_pointstate.v[p]
-        fcnₚ = contact_normal_force(pile, contacted_pointstate.x[p], contacted_pointstate.m[p], contacted_pointstate.h[p], dt)
+        vₚ = pointstate.v[p]
+        fcnₚ = contact_normal_force(pile, pointstate.x[p], pointstate.m[p], pointstate.h[p], dt)
         fcn = N * fcnₚ
         vᵣ = w * (vₚ - v_pile)
         fcn, vᵣ, w
     end
-    @. grid.state.vᵣ /= grid.state.w_pile
-    @. grid.state.fc = contact_force(grid.state.vᵣ, grid.state.fcn, grid.state.m, dt, μ)
-    @. grid.state.v += (grid.state.fc / grid.state.m) * dt
+    @dot_threads grid.state.vᵣ /= grid.state.w_pile
+    @dot_threads grid.state.fc = contact_force(grid.state.vᵣ, grid.state.fcn, grid.state.m, dt, μ)
+    @dot_threads grid.state.v += (grid.state.fc / grid.state.m) * dt
 end
 
 function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, model::DruckerPrager, pile::Polygon, dt, coord_system)
@@ -285,7 +282,7 @@ function contact_distance(poly::Polygon, x::Vec{dim, T}, l::Vec{dim, T}) where {
 end
 
 function contact_normal_force(poly::Polygon, x::Vec{dim, T}, m::T, l::Vec{dim, T}, dt::T) where {dim, T}
-    ξ = 0.5
+    ξ = 0.1
     thresh = threshold(l)
     d = distance(poly, x, thresh)
     d === nothing && return zero(Vec{dim, T})
