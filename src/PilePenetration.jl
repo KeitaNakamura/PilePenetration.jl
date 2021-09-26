@@ -68,7 +68,7 @@ function main()
     @showval vy_pile = 0.4       "貫入速度"        "m/s"
     @showval total_time = 5.0    "貫入時間"        "s"
 
-    grid = Grid(NodeState, WLS{1}(CubicBSpline{2}()), 0:dx:0.75, 0:dx:6.0)
+    grid = Grid(NodeState, WLS{1}(QuadraticBSpline{2}()), 0:dx:0.75, 0:dx:6.0)
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
     cache = MPCache(grid, pointstate.x)
     elastic = LinearElastic(; E, ν)
@@ -282,7 +282,7 @@ function contact_distance(poly::Polygon, x::Vec{dim, T}, l::Vec{dim, T}) where {
 end
 
 function contact_normal_force(poly::Polygon, x::Vec{dim, T}, m::T, l::Vec{dim, T}, dt::T) where {dim, T}
-    ξ = 0.1
+    ξ = 0.0
     thresh = threshold(l)
     d = distance(poly, x, thresh)
     d === nothing && return zero(Vec{dim, T})
