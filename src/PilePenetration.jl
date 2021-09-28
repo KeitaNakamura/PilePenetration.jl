@@ -48,14 +48,14 @@ end
 function main()
     coord_system = Axisymmetric()
 
-    res = 4 # 数値が高いほど解像度が大きい
+    res = 3 # 数値が大きいほど解像度が高い
     @showval ρ₀ = 1.55e3               "乾燥密度"          "kg/m³"
     @showval g = 9.81                  "重力加速度"        "m/s²"
     @showval h = 3                     "地盤高さ"          "m"
     @showval ϕ = 38                    "内部摩擦角"        "˚"
     @showval ψ = 0                     "ダイレタンシー角"  "˚"
     @showval ν = 0.333                 "ポアソン比"
-    @showval E = 2.0e6                 "ヤング係数"        "Pa"
+    @showval E = 5.0e6                 "ヤング係数"        "Pa"
     @showval μ = tan(deg2rad(ϕ))*2/3   "摩擦係数"
     @showval dx = 0.01/res             "メッシュの幅"      "m"
 
@@ -270,15 +270,6 @@ threshold(l::Vec) = mean(l) / 2 * 1.5
 function distanceto(poly::Polygon, x::Vec{dim}, l::Vec{dim}) where {dim}
     thresh = threshold(l)
     distance(poly, x, thresh)
-end
-
-function contact_distance(poly::Polygon, x::Vec{dim, T}, l::Vec{dim, T}) where {dim, T}
-    thresh = threshold(l)
-    d = distance(poly, x, thresh)
-    d === nothing && return zero(Vec{dim, T})
-    norm_d = norm(d)
-    n = d / norm_d
-    (thresh - norm_d) * n
 end
 
 function contact_normal_force(poly::Polygon, x::Vec{dim, T}, m::T, l::Vec{dim, T}, dt::T) where {dim, T}
