@@ -1,7 +1,7 @@
 module PilePenetration
 
 using Poingr, GeometricObjects
-using DelimitedFiles
+using Serialization, DelimitedFiles
 
 using Base: @_propagate_inbounds_meta, @_inline_meta
 
@@ -191,6 +191,11 @@ function main()
             open(io -> writedlm(io, tip, ','), joinpath(proj_dir, "force_tip", "force_tip_$(logindex(logger)).csv"), "w")
             open(io -> writedlm(io, inside, ','), joinpath(proj_dir, "force_inside", "force_inside_$(logindex(logger)).csv"), "w")
             open(io -> writedlm(io, outside, ','), joinpath(proj_dir, "force_outside", "force_outside_$(logindex(logger)).csv"), "w")
+
+            serialize(joinpath(proj_dir, string("save", logindex(logger))),
+                      Dict("pointstate" => pointstate,
+                           "grid" => grid,
+                           "pile" => pile))
         end
     end
 end
