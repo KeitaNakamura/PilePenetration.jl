@@ -26,7 +26,6 @@ struct NodeState
     w::Float64
     m::Float64
     v::Vec{2, Float64}
-    v_pile::Vec{2, Float64}
     vᵣ::Vec{2, Float64}
     w_pile::Float64
 end
@@ -34,7 +33,6 @@ end
 struct PointState
     m::Float64
     V0::Float64
-    h::Vec{2, Float64}
     x::Vec{2, Float64}
     v::Vec{2, Float64}
     b::Vec{2, Float64}
@@ -43,6 +41,8 @@ struct PointState
     F::SecondOrderTensor{3, Float64, 9}
     ∇v::SecondOrderTensor{3, Float64, 9}
     C::Mat{2, 3, Float64, 6}
+    side_length::Vec{2, Float64}
+    index::Int
 end
 
 function main()
@@ -68,7 +68,7 @@ function main()
     @showval vy_pile = 0.4       "貫入速度"        "m/s"
     @showval total_time = 5.0    "貫入時間"        "s"
 
-    grid = Grid(NodeState, WLS{1}(QuadraticBSpline{2}()), 0:dx:0.75, 0:dx:6.0)
+    grid = Grid(NodeState, LinearWLS(QuadraticBSpline()), 0:dx:0.75, 0:dx:6.0)
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
     cache = MPCache(grid, pointstate.x)
     elastic = LinearElastic(; E, ν)
@@ -88,7 +88,7 @@ function main()
     @. pointstate.F = one(SecondOrderTensor{3,Float64})
     @. pointstate.b = Vec(0.0, -g)
     @. pointstate.σ0 = pointstate.σ
-    Poingr.reordering_pointstate!(pointstate, cache)
+    Poingr.reorder_pointstate!(pointstate, cache)
 
     R_i = D_i / 2 # radius
     r_i = d_i / 2 # radius
@@ -158,7 +158,7 @@ function main()
         update!(logger, t += dt)
 
         if islogpoint(logger)
-            Poingr.reordering_pointstate!(pointstate, cache)
+            Poingr.reorder_pointstate!(pointstate, cache)
             paraview_collection(paraview_file, append = true) do pvd
                 vtk_multiblock(string(paraview_file, logindex(logger))) do vtm
                     vtk_points(vtm, pointstate.x) do vtk
@@ -198,14 +198,14 @@ end
 function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Polygon, v_pile, dt, μ, coord_system)
     default_point_to_grid!(grid, pointstate, cache, coord_system)
     @dot_threads grid.state.v += (grid.state.f / grid.state.m) * dt
-    mask = @. distanceto($Ref(pile), pointstate.x, pointstate.h) !== nothing
+    mask = @. distanceto($Ref(pile), pointstate.x, pointstate.side_length) !== nothing
     point_to_grid!((grid.state.fcn, grid.state.vᵣ, grid.state.w_pile), cache, mask) do it, p, i
         @_inline_meta
         @_propagate_inbounds_meta
         N = it.N
         w = it.w
         vₚ = pointstate.v[p]
-        fcnₚ = contact_normal_force(pile, pointstate.x[p], pointstate.m[p], pointstate.h[p], dt)
+        fcnₚ = contact_normal_force(pile, pointstate.x[p], pointstate.m[p], pointstate.side_length[p], dt)
         fcn = N * fcnₚ
         vᵣ = w * (vₚ - v_pile)
         fcn, vᵣ, w
