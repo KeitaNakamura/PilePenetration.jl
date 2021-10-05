@@ -1,23 +1,13 @@
 module PilePenetration
 
 using Poingr, GeometricObjects
-using Serialization, DelimitedFiles
+using StructArrays
+using DelimitedFiles
+using Serialization
+using TOML
+using Dates
 
 using Base: @_propagate_inbounds_meta, @_inline_meta
-
-showval(val, name::String, unit::String = "") = println(rpad(name * ":", 10, '　') * lpad(string(val), 10) * " (" * unit * ")")
-macro showval(ex, name, unit)
-    quote
-        v = $(esc(ex))
-        showval(v, $(esc(name)), $unit)
-    end
-end
-macro showval(ex, name)
-    quote
-        v = $(esc(ex))
-        showval(v, $(esc(name)))
-    end
-end
 
 struct NodeState
     f::Vec{2, Float64}
@@ -45,36 +35,68 @@ struct PointState
     index::Int
 end
 
-function main()
+function julia_main()::Cint
+    isempty(ARGS) && throw(ArgumentError("input.toml must be given as the first argument"))
+    inputtoml = ARGS[1]
+    try
+        main(inputtoml)
+    catch
+        Base.invokelatest(Base.display_error, Base.catch_stack())
+        return 1
+    end
+    return 0
+end
+
+function main(inputtoml::AbstractString)
+    dict = TOML.parsefile(inputtoml)
+    list = map(collect(keys(dict))) do section
+        subdict = dict[section]
+        Symbol(section) => (; (Symbol(key) => value for (key, value) in subdict)...)
+    end
+    input = (; list...)
+    main(splitdir(inputtoml)[1], input)
+end
+
+function main(proj_dir::AbstractString, INPUT::NamedTuple)
+
+    # General
+    (xmin, xmax), (ymin, ymax) = INPUT.General.domain
+    dx = INPUT.General.grid_space
+    g = INPUT.General.gravity
+    total_time = INPUT.General.total_time
+
+    # Ground
+    h = INPUT.Ground.height
+    ρ₀ = INPUT.Ground.dry_density
+    E = INPUT.Ground.youngs_modulus
+    ν = INPUT.Ground.poissons_ratio
+    ϕ = INPUT.Ground.friction_angle
+    ψ = INPUT.Ground.dilatancy_angle
+
+    # Pile
+    D_i = INPUT.Pile.diameter_head
+    d_i = INPUT.Pile.diameter_tip
+    pile_length = INPUT.Pile.pile_length
+    tapered_length = INPUT.Pile.tapered_length
+    thickness = INPUT.Pile.thickness
+    μ = INPUT.Pile.friction_with_ground
+    vy_pile = INPUT.Pile.velocity
+    vacuum = INPUT.Pile.vacuum
+    vacuum_height = INPUT.Pile.vacuum_height
+    @assert thickness ≥ dx
+
+    # Advanced
+    CFL = INPUT.Advanced.CFL
+    contact_threshold_scale = INPUT.Advanced.contact_threshold_scale
+    contact_penalty_parameter = INPUT.Advanced.contact_penalty_parameter
+
+
     coord_system = Axisymmetric()
-
-    res = 3 # 数値が大きいほど解像度が高い
-    @showval ρ₀ = 1.55e3               "乾燥密度"          "kg/m³"
-    @showval g = 9.81                  "重力加速度"        "m/s²"
-    @showval h = 3                     "地盤高さ"          "m"
-    @showval ϕ = 38                    "内部摩擦角"        "˚"
-    @showval ψ = 0                     "ダイレタンシー角"  "˚"
-    @showval ν = 0.333                 "ポアソン比"
-    @showval E = 5.0e6                 "ヤング係数"        "Pa"
-    @showval μ = tan(deg2rad(ϕ))*2/3   "摩擦係数"
-    @showval dx = 0.01/res             "メッシュの幅"      "m"
-
-    @showval thick = 2dx           "肉厚"            "m"
-    @showval D_i = 0.15            "杭頭径（内径）"  "m"
-    @showval d_i = 0.10            "先端径（内径）"  "m"
-    @showval taper_length = 0.715  "テーパー長"      "m"
-    @showval taper_angle = atan((D_i-d_i) / 2taper_length) |> rad2deg "テーパー角" "˚"
-
-    @showval vy_pile = 0.4       "貫入速度"        "m/s"
-    @showval total_time = 5.0    "貫入時間"        "s"
-
-    grid = Grid(NodeState, LinearWLS(QuadraticBSpline()), 0:dx:0.75, 0:dx:6.0)
+    grid = Grid(NodeState, LinearWLS(QuadraticBSpline()), xmin:dx:xmax, ymin:dx:ymax)
     pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, coord_system)
     cache = MPCache(grid, pointstate.x)
     elastic = LinearElastic(; E, ν)
-    # elastic = SoilElastic(κ = 0.014, α = 40.0, p_ref = -1.0, μ_ref = 10.0)
-    model = DruckerPrager(elastic, :circumscribed, c = 0, ϕ = ϕ, ψ = ψ)
-
+    model = DruckerPrager(elastic, :circumscribed; c = 0.0, ϕ, ψ)
 
     for p in 1:length(pointstate)
         y = pointstate.x[p][2]
@@ -92,90 +114,98 @@ function main()
 
     R_i = D_i / 2 # radius
     r_i = d_i / 2 # radius
-    R_o = R_i + thick
-    r_o = r_i + thick
-    tip_height_0 = h + gridsteps(grid, 1)
-    y_max = grid[end, end][2]
-    pile = Polygon([Vec(R_i, y_max),
-                    Vec(R_i, tip_height_0 + taper_length),
+    R_o = R_i + thickness
+    r_o = r_i + thickness
+    tip_height_0 = h + dx
+    pile = Polygon([Vec(R_i, tip_height_0 + pile_length),
+                    Vec(R_i, tip_height_0 + tapered_length),
                     Vec(r_i, tip_height_0),
                     Vec(r_o, tip_height_0),
-                    Vec(R_o, tip_height_0 + taper_length),
-                    Vec(R_o, y_max)])
+                    Vec(R_o, tip_height_0 + tapered_length),
+                    Vec(R_o, tip_height_0 + pile_length)])
+    inside_pile = Polygon([Vec(0.0, tip_height_0 + pile_length),
+                           Vec(0.0, tip_height_0),
+                           Vec(r_i, tip_height_0),
+                           Vec(R_i, tip_height_0 + tapered_length),
+                           Vec(R_i, tip_height_0 + pile_length)])
     v_pile = Vec(0.0, -vy_pile)
 
     pile_center_0 = centroid(pile)
 
-    find_ground_pos(xₚ) = maximum(x -> x[2], filter(x -> x[1] < gridsteps(grid, 1), xₚ))
+    find_ground_pos(xₚ) = maximum(x -> x[2], filter(x -> x[1] < dx, xₚ))
     ground_pos0 = find_ground_pos(pointstate.x)
-
-
-    @showval length(pointstate) "粒子数"
 
     # Output files
     ## proj
-    proj_dir = joinpath("pile.tmp")
-    mkpath(proj_dir)
+    output_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
+    mkpath(output_dir)
 
     ## paraview
-    paraview_file = joinpath(proj_dir, "out")
+    paraview_file = joinpath(output_dir, "out")
     paraview_collection(vtk_save, paraview_file)
 
     ## history
-    csv_file = joinpath(proj_dir, "history.csv")
+    csv_file = joinpath(output_dir, "history.csv")
     open(csv_file, "w") do io
         writedlm(io, ["disp" "force" "disp_inside_pile" "tip_resistance" "inside_resistance" "outside_resistance"], ',')
     end
 
     ## forces
-    mkpath(joinpath(proj_dir, "force_tip"))
-    mkpath(joinpath(proj_dir, "force_inside"))
-    mkpath(joinpath(proj_dir, "force_outside"))
+    mkpath(joinpath(output_dir, "force_tip"))
+    mkpath(joinpath(output_dir, "force_inside"))
+    mkpath(joinpath(output_dir, "force_outside"))
 
-    ## copy this file
-    cp(@__FILE__, joinpath(proj_dir, "main.jl"), force = true)
-
-    logger = Logger(0.0:0.05:total_time; progress = true)
-
+    logger = Logger(0.0:INPUT.General.output_interval:total_time; progress = true)
     t = 0.0
+
+    println("Start: ", now())
+    println("Particles: ", length(pointstate))
+
     while !isfinised(logger, t)
 
         dt = minimum(pointstate) do p
             ρ = p.m / (p.V0 * det(p.F))
             vc = soundspeed(elastic.K, elastic.G, ρ)
-            # vc = soundspeed(Poingr.bulkmodulus(elastic, p.σ), Poingr.shearmodulus(elastic, p.σ), ρ)
-            0.5 * minimum(gridsteps(grid)) / vc
+            CFL * dx / vc
         end
 
         update!(cache, grid, pointstate.x)
-        P2G!(grid, pointstate, cache, pile, v_pile, dt, μ, coord_system)
+        P2G!(grid, pointstate, cache, pile, v_pile, dt, μ, contact_threshold_scale, contact_penalty_parameter, coord_system)
         for bd in eachboundary(grid)
             @. grid.state.v[bd.indices] = boundary_velocity(grid.state.v[bd.indices], bd.n)
         end
         G2P!(pointstate, grid, cache, model, pile, dt, coord_system)
 
         translate!(pile, v_pile * dt)
+        translate!(inside_pile, v_pile * dt)
         update!(logger, t += dt)
 
         if islogpoint(logger)
             Poingr.reorder_pointstate!(pointstate, cache)
+
+            if vacuum
+                tip_height = pile[3][2]
+                inds = findall(xₚ -> (xₚ in inside_pile) && xₚ[2] > (tip_height + vacuum_height), pointstate.x)
+                StructArrays.foreachfield(v -> deleteat!(v, inds), pointstate)
+            end
+
             paraview_collection(paraview_file, append = true) do pvd
                 vtk_multiblock(string(paraview_file, logindex(logger))) do vtm
                     vtk_points(vtm, pointstate.x) do vtk
                         ϵₚ = @dot_lazy symmetric(pointstate.F - $Ref(I))
-                        vtk_point_data(vtk, pointstate.v, "velocity")
-                        vtk_point_data(vtk, @dot_lazy(-mean.(pointstate.σ)), "mean stress")
-                        vtk_point_data(vtk, @dot_lazy(deviatoric_stress.(pointstate.σ)), "deviatoric stress")
-                        vtk_point_data(vtk, @dot_lazy(volumetric_strain.(ϵₚ)), "volumetric strain")
-                        vtk_point_data(vtk, @dot_lazy(deviatoric_strain.(ϵₚ)), "deviatoric strain")
-                        vtk_point_data(vtk, pointstate.σ, "stress")
-                        vtk_point_data(vtk, ϵₚ, "strain")
-                        vtk_point_data(vtk, @dot_lazy(pointstate.m / (pointstate.V0 * det(pointstate.F))), "density")
+                        vtk["velocity"] = pointstate.v
+                        vtk["mean stress"] = @dot_lazy -mean(pointstate.σ)
+                        vtk["deviatoric stress"] = @dot_lazy deviatoric_stress(pointstate.σ)
+                        vtk["volumetric strain"] = @dot_lazy volumetric_strain(ϵₚ)
+                        vtk["deviatoric strain"] = @dot_lazy deviatoric_strain(ϵₚ)
+                        vtk["stress"] = @dot_lazy -pointstate.σ
+                        vtk["strain"] = ϵₚ
+                        vtk["density"] = @dot_lazy pointstate.m / (pointstate.V0 * det(pointstate.F))
                     end
                     vtk_grid(vtm, pile)
                     vtk_grid(vtm, grid) do vtk
-                        vtk_point_data(vtk, vec(grid.state.f), "nodal force")
-                        vtk_point_data(vtk, vec(grid.state.fc), "nodal contact force")
+                        vtk["nodal force"] = vec(grid.state.f)
+                        vtk["nodal contact force"] = vec(grid.state.fc)
                     end
                     pvd[t] = vtm
                 end
@@ -188,11 +218,11 @@ function main()
                 disp_inside_pile = -(find_ground_pos(pointstate.x) - ground_pos0)
                 writedlm(io, [disp force disp_inside_pile sum(@view tip[:,3]) sum(@view inside[:,3]) sum(@view outside[:,3])], ',')
             end
-            open(io -> writedlm(io, tip, ','), joinpath(proj_dir, "force_tip", "force_tip_$(logindex(logger)).csv"), "w")
-            open(io -> writedlm(io, inside, ','), joinpath(proj_dir, "force_inside", "force_inside_$(logindex(logger)).csv"), "w")
-            open(io -> writedlm(io, outside, ','), joinpath(proj_dir, "force_outside", "force_outside_$(logindex(logger)).csv"), "w")
+            open(io -> writedlm(io, tip, ','), joinpath(output_dir, "force_tip", "force_tip_$(logindex(logger)).csv"), "w")
+            open(io -> writedlm(io, inside, ','), joinpath(output_dir, "force_inside", "force_inside_$(logindex(logger)).csv"), "w")
+            open(io -> writedlm(io, outside, ','), joinpath(output_dir, "force_outside", "force_outside_$(logindex(logger)).csv"), "w")
 
-            serialize(joinpath(proj_dir, string("save", logindex(logger))),
+            serialize(joinpath(output_dir, string("save", logindex(logger))),
                       Dict("pointstate" => pointstate,
                            "grid" => grid,
                            "pile" => pile))
@@ -200,17 +230,17 @@ function main()
     end
 end
 
-function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Polygon, v_pile, dt, μ, coord_system)
+function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Polygon, v_pile, dt, μ, contact_threshold_scale, contact_penalty_parameter, coord_system)
     default_point_to_grid!(grid, pointstate, cache, coord_system)
     @dot_threads grid.state.v += (grid.state.f / grid.state.m) * dt
-    mask = @. distanceto($Ref(pile), pointstate.x, pointstate.side_length) !== nothing
+    mask = @. distanceto($Ref(pile), pointstate.x, pointstate.side_length * contact_threshold_scale) !== nothing
     point_to_grid!((grid.state.fcn, grid.state.vᵣ, grid.state.w_pile), cache, mask) do it, p, i
         @_inline_meta
         @_propagate_inbounds_meta
         N = it.N
         w = it.w
         vₚ = pointstate.v[p]
-        fcnₚ = contact_normal_force(pile, pointstate.x[p], pointstate.m[p], pointstate.side_length[p], dt)
+        fcnₚ = contact_normal_force(pile, pointstate.x[p], pointstate.m[p], pointstate.side_length[p] * contact_threshold_scale, contact_penalty_parameter, dt)
         fcn = N * fcnₚ
         vᵣ = w * (vₚ - v_pile)
         fcn, vᵣ, w
@@ -226,13 +256,18 @@ function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, model::Dru
     @inbounds Threads.@threads for p in eachindex(pointstate)
         σ = update_stress(model, pointstate.σ[p], symmetric(pointstate.∇v[p]) * dt)
         σ = Poingr.jaumann_stress(σ, pointstate.σ[p], pointstate.∇v[p], dt)
+        F = pointstate.F[p]
         if mean(σ) > 0
             σ = zero(σ)
             ϵv = tr(Dinv ⊡ (σ - pointstate.σ0[p]))
             J = exp(ϵv)
-            pointstate.F[p] = J^(1/3) * one(pointstate.F[p])
+            F = J^(1/3) * one(F)
+        end
+        if det(F) < 0
+            F = zero(F)
         end
         pointstate.σ[p] = σ
+        pointstate.F[p] = F
     end
 end
 
@@ -270,16 +305,13 @@ function extract_contact_forces(fcᵢ, grid, pile)
     map(reshape_data, (tip, inside, outside))
 end
 
-threshold(l::Vec) = mean(l) / 2 * 1.5
-
 function distanceto(poly::Polygon, x::Vec{dim}, l::Vec{dim}) where {dim}
-    thresh = threshold(l)
+    thresh = mean(l) / 2
     distance(poly, x, thresh)
 end
 
-function contact_normal_force(poly::Polygon, x::Vec{dim, T}, m::T, l::Vec{dim, T}, dt::T) where {dim, T}
-    ξ = 0.0
-    thresh = threshold(l)
+function contact_normal_force(poly::Polygon, x::Vec{dim, T}, m::T, l::Vec{dim, T}, ξ, dt::T) where {dim, T}
+    thresh = mean(l) / 2
     d = distance(poly, x, thresh)
     d === nothing && return zero(Vec{dim, T})
     norm_d = norm(d)
@@ -305,7 +337,7 @@ end
 
 #=
 using Plots, DelimitedFiles
-plot((arr = readdlm("pile.tmp/history.csv", ',', skipstart=1); @show size(arr, 1); (arr[:,1], arr[:,[2,4,5,6]]))..., label = ["total" "tip" "inside" "outside"], xlims = (0,2), ylims = (0,60e3))
+plot((arr = readdlm("output.tmp/history.csv", ',', skipstart=1); @show size(arr, 1); (arr[:,1], arr[:,[2,4,5,6]]))..., label = ["total" "tip" "inside" "outside"], xlims = (0,2), ylims = (0,60e3))
 =#
 
 end # module

@@ -17,9 +17,9 @@ uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
-git-tree-sha1 = "a325370b9dd0e6bf5656a6f1a7ae80755f8ccc46"
+git-tree-sha1 = "74e8234fb738c45e2af55fdbcd9bfbe00c2446fa"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-version = "1.7.2"
+version = "1.8.0"
 
 [[CodecZlib]]
 deps = ["TranscodingStreams", "Zlib_jll"]
@@ -94,32 +94,32 @@ uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 
 [[FillArrays]]
 deps = ["LinearAlgebra", "Random", "SparseArrays", "Statistics"]
-git-tree-sha1 = "29890dfbc427afa59598b8cfcc10034719bd7744"
+git-tree-sha1 = "8756f9935b7ccc9064c6eef0bff0ad643df733a3"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "0.12.6"
+version = "0.12.7"
 
 [[ForwardDiff]]
-deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "NaNMath", "Printf", "Random", "SpecialFunctions", "StaticArrays"]
-git-tree-sha1 = "c4203b60d37059462af370c4f3108fb5d155ff13"
+deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "NaNMath", "Preferences", "Printf", "Random", "SpecialFunctions", "StaticArrays"]
+git-tree-sha1 = "63777916efbcb0ab6173d09a658fb7f2783de485"
 uuid = "f6369f11-7733-5829-9624-2563aa707210"
-version = "0.10.20"
+version = "0.10.21"
 
 [[GeometricObjects]]
 deps = ["RecipesBase", "Reexport", "StaticArrays", "Tensorial", "WriteVTK"]
-git-tree-sha1 = "eb716ad85a5a3cf7a9c312b35528c1ad7d105f72"
+git-tree-sha1 = "d47266c0ca8c79c23783fd268259494809af1f6e"
 repo-rev = "main"
 repo-url = "https://github.com/KeitaNakamura/GeometricObjects.jl.git"
 uuid = "f167b195-1c3d-409a-8dd6-02cc02a656c6"
-version = "0.3.3"
+version = "0.3.4"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[IrrationalConstants]]
-git-tree-sha1 = "f76424439413893a832026ca355fe273e93bce94"
+git-tree-sha1 = "7fd44fd4ff43fc60815f8e764c0f352b83c49151"
 uuid = "92d709cd-6900-40b7-9082-c6be49f344b6"
-version = "0.1.0"
+version = "0.1.1"
 
 [[IteratorInterfaceExtensions]]
 git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
@@ -220,11 +220,11 @@ uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[Poingr]]
 deps = ["Coordinates", "ProgressMeter", "Reexport", "StaticArrays", "StructArrays", "Tensorial", "WriteVTK"]
-git-tree-sha1 = "222145e6bc40249fe8edb0942755efe327b29fb7"
+git-tree-sha1 = "604af9e79bb8f440acecd9850dd0a103af6290a7"
 repo-rev = "main"
 repo-url = "https://github.com/KeitaNakamura/Poingr.jl.git"
 uuid = "573615e8-489b-4e48-952b-fc194aa7573b"
-version = "0.10.0"
+version = "0.10.1"
 
 [[Preferences]]
 deps = ["TOML"]
