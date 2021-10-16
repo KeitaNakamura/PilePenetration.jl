@@ -36,8 +36,11 @@ struct PointState
 end
 
 function julia_main()::Cint
-    isempty(ARGS) && throw(ArgumentError("input.toml must be given as the first argument"))
-    inputtoml = ARGS[1]
+    if isempty(ARGS)
+        inputtoml = "input.toml"
+    else
+        inputtoml = ARGS[1]
+    end
     try
         main(inputtoml)
     catch
