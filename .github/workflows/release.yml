@@ -67,7 +67,6 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          body_path: notes.txt
           files: |
             Linux/Linux.zip
             macOS/macOS.zip
