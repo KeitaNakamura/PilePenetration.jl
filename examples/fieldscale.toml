@@ -1,4 +1,4 @@
-# field test
+# field scale
 
 [General]
 domain = [[0.0, 6.0], [0.0, 30.0]] # [[xmin, xmax], [ymin, ymax]] (m)
