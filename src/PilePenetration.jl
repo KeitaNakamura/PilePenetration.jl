@@ -157,7 +157,7 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     println("Particles: ", length(pointstate))
 
     t = 0.0
-    logger = Logger(0.0:INPUT.General.output_interval:total_time; progress = true)
+    logger = Logger(0.0:INPUT.General.output_interval:total_time; progress = INPUT.General.show_progress)
     while !isfinised(logger, t)
         dt = minimum(pointstate) do p
             ρ = p.m / (p.V0 * det(p.F))
