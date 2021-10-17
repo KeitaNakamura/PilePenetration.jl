@@ -1,4 +1,4 @@
-# model test
+# model scale
 
 [General]
 domain = [[0.0, 0.75], [0.0, 3.1]] # [[xmin, xmax], [ymin, ymax]] (m)
