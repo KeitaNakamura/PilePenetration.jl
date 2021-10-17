@@ -1,8 +1,8 @@
-# forcus on soil plug
+# short pile for test
 
 [General]
 domain = [[0.0, 0.5], [0.0, 1.1]] # [[xmin, xmax], [ymin, ymax]] (m)
-grid_space = 0.0075 # (m)
+grid_space = 0.01   # (m)
 gravity = 9.81      # (m/s2)
 total_time = 0.5    # (sec)
 output_interval = 0.05 # (sec)
@@ -22,7 +22,7 @@ diameter_head = 0.15   # (m)
 diameter_tip  = 0.15   # (m)
 pile_length = 1.0      # (m)
 tapered_length = 0.715 # (m)
-thickness = 0.015      # (m) NOTE: This must be at least `2 * grid_space`
+thickness = 0.02       # (m) NOTE: This must be at least `2 * grid_space`
 friction_with_ground = 0.41
 velocity = 1.0   # (m/s)
 vacuum = false
