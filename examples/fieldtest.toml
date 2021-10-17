@@ -7,6 +7,7 @@ gravity = 9.81     # (m/s2)
 total_time = 14.8  # (sec)
 output_interval = 0.10 # (sec)
 output_folder_name = "output.tmp"
+show_progress = true
 
 [Ground]
 height = 20.0 # (m)
