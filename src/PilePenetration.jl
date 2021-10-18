@@ -21,6 +21,7 @@ struct NodeState
     v::Vec{2, Float64}
     vᵣ::Vec{2, Float64}
     w_pile::Float64
+    friction_with_pile::Float64
 end
 
 struct PointState
@@ -35,7 +36,9 @@ struct PointState
     ∇v::SecondOrderTensor{3, Float64, 9}
     C::Mat{2, 3, Float64, 6}
     side_length::Vec{2, Float64}
+    friction_with_pile::Float64
     index::Int
+    layerindex::Int
 end
 
 function julia_main()::Cint
@@ -53,14 +56,26 @@ function julia_main()::Cint
     return 0
 end
 
-function main(inputtoml::AbstractString)
-    dict = TOML.parsefile(inputtoml)
+function parseinput(dict::Dict)
+    dict2namedtuple(x::Dict) = (; (Symbol(key) => value for (key, value) in x)...)
     list = map(collect(keys(dict))) do section
-        subdict = dict[section]
-        Symbol(section) => (; (Symbol(key) => value for (key, value) in subdict)...)
+        content = dict[section]
+        if content isa Dict
+            Symbol(section) => dict2namedtuple(content)
+        elseif content isa Vector
+            Symbol(section) => map(dict2namedtuple, content)
+        else
+            error("unreachable")
+        end
     end
-    input = (; list...)
-    main(splitdir(inputtoml)[1], input)
+    (; list...)
+end
+function parseinput(inputtoml::AbstractString)
+    parseinput(TOML.parsefile(inputtoml))
+end
+
+function main(inputtoml::AbstractString)
+    main(splitdir(inputtoml)[1], parseinput(inputtoml))
 end
 
 function main(proj_dir::AbstractString, INPUT::NamedTuple)
@@ -71,13 +86,10 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     g = INPUT.General.gravity
     total_time = INPUT.General.total_time
 
-    # Ground
-    h = INPUT.Ground.height
-    ρ₀ = INPUT.Ground.dry_density
-    E = INPUT.Ground.youngs_modulus
-    ν = INPUT.Ground.poissons_ratio
-    ϕ = INPUT.Ground.friction_angle
-    ψ = INPUT.Ground.dilatancy_angle
+    # SoilLayer
+    soillayers = INPUT.SoilLayer # reorder layers from low to high
+    H = sum(layer -> layer.height, soillayers)
+    @assert H ≤ ymax
 
     # Pile
     D_i = INPUT.Pile.diameter_head
@@ -85,7 +97,6 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     pile_length = INPUT.Pile.pile_length
     tapered_length = INPUT.Pile.tapered_length
     thickness = INPUT.Pile.thickness
-    μ = INPUT.Pile.friction_with_ground
     vy_pile = INPUT.Pile.velocity
     vacuum = INPUT.Pile.vacuum
     vacuum_height = INPUT.Pile.vacuum_height
@@ -98,20 +109,50 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
 
 
     grid = Grid(NodeState, LinearWLS(QuadraticBSpline()), xmin:dx:xmax, ymin:dx:ymax)
-    pointstate = generate_pointstate((x,y) -> y < h, PointState, grid, Axisymmetric())
+    pointstate = generate_pointstate((x,y) -> y < H, PointState, grid, Axisymmetric())
     cache = MPCache(grid, pointstate.x)
-    elastic = LinearElastic(; E, ν)
-    model = DruckerPrager(elastic, :circumscribed; c = 0.0, ϕ, ψ)
 
-    for p in 1:length(pointstate)
+    layermodels = map(soillayers) do layer
+        ρ₀ = layer.dry_density
+        E = layer.youngs_modulus
+        ν = layer.poissons_ratio
+        ϕ = layer.friction_angle
+        ψ = layer.dilatancy_angle
+        elastic = LinearElastic(; E, ν)
+        DruckerPrager(elastic, :circumscribed; c = 0.0, ϕ, ψ)
+    end
+    bottom = ymin
+    for i in length(soillayers):-1:1 # from low to high
+        layer = soillayers[i]
+        Threads.@threads for p in 1:length(pointstate)
+            y = pointstate.x[p][2]
+            if bottom ≤ y ≤ bottom + layer.height
+                pointstate.layerindex[p] = i
+            end
+        end
+        bottom += layer.height
+    end
+
+    Threads.@threads for p in 1:length(pointstate)
+        layerindex = pointstate.layerindex[p]
+        σ_y = 0.0
+        for layer in soillayers[begin:layerindex-1]
+            ρ₀ = layer.dry_density
+            σ_y += -ρ₀ * g * layer.height
+        end
+        h = sum(layer -> layer.height, soillayers[layerindex:end])
+        layer = soillayers[layerindex]
         y = pointstate.x[p][2]
-        σ_y = -ρ₀ * g * (h - y)
+        ρ0 = layer.dry_density
+        ν = layer.poissons_ratio
+        σ_y += -ρ0 * g * (h - y)
         σ_x = σ_y * ν / (1 - ν)
         pointstate.σ[p] = (@Mat [σ_x 0.0 0.0
                                  0.0 σ_y 0.0
                                  0.0 0.0 σ_x]) |> symmetric
+        pointstate.m[p] = ρ0 * pointstate.V0[p]
+        pointstate.friction_with_pile[p] = layer.friction_with_pile
     end
-    @. pointstate.m = ρ₀ * pointstate.V0
     @. pointstate.F = one(SecondOrderTensor{3,Float64})
     @. pointstate.b = Vec(0.0, -g)
     @. pointstate.σ0 = pointstate.σ
@@ -125,8 +166,8 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
                     Vec(r_o, 0.0), Vec(R_o, tapered_length), Vec(R_o, pile_length)])
     pile_inside = Polygon([Vec(0.0, pile_length), Vec(0.0, 0.0),
                            Vec(r_i, 0.0), Vec(R_i, tapered_length), Vec(R_i, pile_length)])
-    translate!(pile, Vec(0.0, h+dx))
-    translate!(pile_inside, Vec(0.0, h+dx))
+    translate!(pile, Vec(0.0, H+dx))
+    translate!(pile_inside, Vec(0.0, H+dx))
     v_pile = Vec(0.0, -vy_pile)
 
     pile_center_0 = centroid(pile)
@@ -161,6 +202,7 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     while !isfinised(logger, t)
         dt = minimum(pointstate) do p
             ρ = p.m / (p.V0 * det(p.F))
+            elastic = layermodels[p.layerindex].elastic
             vc = soundspeed(elastic.K, elastic.G, ρ)
             CFL * dx / vc
         end
@@ -170,7 +212,7 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
         for bd in eachboundary(grid)
             @. grid.state.v[bd.indices] = boundary_velocity(grid.state.v[bd.indices], bd.n)
         end
-        G2P!(pointstate, grid, cache, model, pile, dt)
+        G2P!(pointstate, grid, cache, layermodels, pile, dt)
 
         translate!(pile, v_pile * dt)
         translate!(pile_inside, v_pile * dt)
@@ -191,14 +233,13 @@ tip_height(pile) = pile[3][2]
 find_ground_pos(xₚ, dx) = maximum(x -> x[2], filter(x -> x[1] < dx, xₚ))
 
 function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Polygon, v_pile, dt, INPUT)
-    μ = INPUT.Pile.friction_with_ground
     contact_threshold_scale = INPUT.Advanced.contact_threshold_scale
     contact_penalty_parameter = INPUT.Advanced.contact_penalty_parameter
 
     default_point_to_grid!(grid, pointstate, cache, Axisymmetric())
 
     mask = @. distanceto($Ref(pile), pointstate.x, pointstate.side_length * contact_threshold_scale) !== nothing
-    point_to_grid!((grid.state.fcn, grid.state.vᵣ, grid.state.w_pile), cache, mask) do it, p, i
+    point_to_grid!((grid.state.fcn, grid.state.vᵣ, grid.state.w_pile, grid.state.friction_with_pile), cache, mask) do it, p, i
         @_inline_meta
         @_propagate_inbounds_meta
         N = it.N
@@ -206,24 +247,26 @@ function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Poly
         vₚ = pointstate.v[p]
         fcn = N * contact_normal_force(pile, pointstate.x[p], pointstate.m[p], pointstate.side_length[p] * contact_threshold_scale, contact_penalty_parameter, dt)
         vᵣ = w * (vₚ - v_pile)
-        fcn, vᵣ, w
+        μ = w * pointstate.friction_with_pile[p]
+        fcn, vᵣ, w, μ
     end
     @dot_threads grid.state.vᵣ /= grid.state.w_pile
-    @dot_threads grid.state.fc = contact_force(grid.state.vᵣ, grid.state.fcn, grid.state.m, dt, μ)
+    @dot_threads grid.state.friction_with_pile /= grid.state.w_pile
+    @dot_threads grid.state.fc = contact_force(grid.state.vᵣ, grid.state.fcn, grid.state.m, dt, grid.state.friction_with_pile)
 
     @dot_threads grid.state.v += ((grid.state.f + grid.state.fc) / grid.state.m) * dt
 end
 
-function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, model::DruckerPrager, pile::Polygon, dt)
-    Dinv = inv(model.elastic.D)
+function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, layermodels::Vector{<: DruckerPrager}, pile::Polygon, dt)
     default_grid_to_point!(pointstate, grid, cache, dt, Axisymmetric())
     @inbounds Threads.@threads for p in eachindex(pointstate)
+        model = layermodels[pointstate.layerindex[p]]
         σ = update_stress(model, pointstate.σ[p], symmetric(pointstate.∇v[p]) * dt)
         σ = Poingr.jaumann_stress(σ, pointstate.σ[p], pointstate.∇v[p], dt)
         F = pointstate.F[p]
         if mean(σ) > 0
             σ = zero(σ)
-            ϵv = tr(Dinv ⊡ (σ - pointstate.σ0[p]))
+            ϵv = tr(model.elastic.Dinv ⊡ (σ - pointstate.σ0[p]))
             J = exp(ϵv)
             F = J^(1/3) * one(F)
         end
@@ -255,6 +298,7 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
                 vtk["stress"] = @dot_lazy -pointstate.σ
                 vtk["strain"] = ϵₚ
                 vtk["density"] = @dot_lazy pointstate.m / (pointstate.V0 * det(pointstate.F))
+                vtk["soil layer"] = pointstate.layerindex
             end
             vtk_grid(vtm, pile)
             vtk_grid(vtm, grid) do vtk
