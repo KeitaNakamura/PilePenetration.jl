@@ -81,6 +81,7 @@ end
 function main(proj_dir::AbstractString, INPUT::NamedTuple)
 
     # General
+    coordinate_system = INPUT.General.coordinate_system
     (xmin, xmax), (ymin, ymax) = INPUT.General.domain
     dx = INPUT.General.grid_space
     g = INPUT.General.gravity
@@ -108,8 +109,8 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     contact_penalty_parameter = INPUT.Advanced.contact_penalty_parameter
 
 
-    grid = Grid(NodeState, LinearWLS(QuadraticBSpline()), xmin:dx:xmax, ymin:dx:ymax)
-    pointstate = generate_pointstate((x,y) -> y < H, PointState, grid, Axisymmetric())
+    grid = Grid(NodeState, LinearWLS(QuadraticBSpline()), xmin:dx:xmax, ymin:dx:ymax; coordinate_system)
+    pointstate = generate_pointstate((x,y) -> y < H, PointState, grid)
     cache = MPCache(grid, pointstate.x)
 
     layermodels = map(soillayers) do layer
@@ -236,7 +237,7 @@ function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Poly
     contact_threshold_scale = INPUT.Advanced.contact_threshold_scale
     contact_penalty_parameter = INPUT.Advanced.contact_penalty_parameter
 
-    default_point_to_grid!(grid, pointstate, cache, Axisymmetric())
+    default_point_to_grid!(grid, pointstate, cache)
 
     mask = @. distanceto($Ref(pile), pointstate.x, pointstate.side_length * contact_threshold_scale) !== nothing
     point_to_grid!((grid.state.fcn, grid.state.vᵣ, grid.state.w_pile, grid.state.friction_with_pile), cache, mask) do it, p, i
@@ -258,7 +259,7 @@ function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Poly
 end
 
 function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, layermodels::Vector{<: DruckerPrager}, pile::Polygon, dt)
-    default_grid_to_point!(pointstate, grid, cache, dt, Axisymmetric())
+    default_grid_to_point!(pointstate, grid, cache, dt)
     @inbounds Threads.@threads for p in eachindex(pointstate)
         model = layermodels[pointstate.layerindex[p]]
         σ = update_stress(model, pointstate.σ[p], symmetric(pointstate.∇v[p]) * dt)
