@@ -53,14 +53,26 @@ function julia_main()::Cint
     return 0
 end
 
-function main(inputtoml::AbstractString)
-    dict = TOML.parsefile(inputtoml)
+function parseinput(dict::Dict)
+    dict2namedtuple(x::Dict) = (; (Symbol(key) => value for (key, value) in x)...)
     list = map(collect(keys(dict))) do section
-        subdict = dict[section]
-        Symbol(section) => (; (Symbol(key) => value for (key, value) in subdict)...)
+        content = dict[section]
+        if content isa Dict
+            Symbol(section) => dict2namedtuple(content)
+        elseif content isa Vector
+            Symbol(section) => map(dict2namedtuple, content)
+        else
+            error("unreachable")
+        end
     end
-    input = (; list...)
-    main(splitdir(inputtoml)[1], input)
+    (; list...)
+end
+function parseinput(inputtoml::AbstractString)
+    parseinput(TOML.parsefile(inputtoml))
+end
+
+function main(inputtoml::AbstractString)
+    main(splitdir(inputtoml)[1], parseinput(inputtoml))
 end
 
 function main(proj_dir::AbstractString, INPUT::NamedTuple)
