@@ -9,13 +9,23 @@ output_interval = 0.05 # (sec)
 output_folder_name = "output.tmp"
 show_progress = false
 
-[Ground]
-height = 1.0 # (m)
+[[SoilLayer]]
+height = 0.2 # (m)
+dry_density = 1300.0 # (kg/m3)
+poissons_ratio = 0.333
+youngs_modulus = 1e6  # (N/m2)
+friction_angle = 28.0 # (degree)
+dilatancy_angle = 0.0 # (degree)
+friction_with_pile = 0.35
+
+[[SoilLayer]]
+height = 0.8 # (m)
 dry_density = 1500.0 # (kg/m3)
 poissons_ratio = 0.333
 youngs_modulus = 1e6  # (N/m2)
 friction_angle = 32.0 # (degree)
 dilatancy_angle = 0.0 # (degree)
+friction_with_pile = 0.41
 
 [Pile]
 diameter_head = 0.15   # (m)
@@ -23,7 +33,6 @@ diameter_tip  = 0.15   # (m)
 pile_length = 1.0      # (m)
 tapered_length = 0.715 # (m)
 thickness = 0.02       # (m) NOTE: This must be at least `2 * grid_space`
-friction_with_ground = 0.41
 velocity = 1.0   # (m/s)
 vacuum = false
 vacuum_height = 0.15 # (m)
