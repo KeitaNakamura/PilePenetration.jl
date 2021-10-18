@@ -1,6 +1,7 @@
 # model scale
 
 [General]
+coordinate_system = "axisymmetric" # plane_strain or axisymmetric
 domain = [[0.0, 0.75], [0.0, 3.1]] # [[xmin, xmax], [ymin, ymax]] (m)
 grid_space = 0.005 # (m)
 gravity = 9.81     # (m/s2)
