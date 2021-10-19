@@ -2,7 +2,7 @@
 
 [General]
 coordinate_system = "axisymmetric" # plane_strain or axisymmetric
-domain = [[0.0, 6.0], [0.0, 30.0]] # [[xmin, xmax], [ymin, ymax]] (m)
+domain = [[0.0, 6.0], [0.0, 21.0]] # [[xmin, xmax], [ymin, ymax]] (m)
 grid_space = 0.02  # (m)
 gravity = 9.81     # (m/s2)
 total_time = 14.8  # (sec)
@@ -12,7 +12,7 @@ show_progress = true
 
 [[SoilLayer]]
 thickness = 20.0 # (m)
-unit_weight = 15205.5 # (N/m3)
+unit_weight = 10e3 # (N/m3)
 poissons_ratio = 0.333
 youngs_modulus = 10e6 # (N/m2)
 friction_angle = 35.0 # (degree)
