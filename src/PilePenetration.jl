@@ -89,7 +89,7 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
 
     # SoilLayer
     soillayers = INPUT.SoilLayer # reorder layers from low to high
-    H = sum(layer -> layer.height, soillayers)
+    H = sum(layer -> layer.thickness, soillayers)
     @assert H ≤ ymax
 
     # Pile
@@ -127,11 +127,11 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
         layer = soillayers[i]
         Threads.@threads for p in 1:length(pointstate)
             y = pointstate.x[p][2]
-            if bottom ≤ y ≤ bottom + layer.height
+            if bottom ≤ y ≤ bottom + layer.thickness
                 pointstate.layerindex[p] = i
             end
         end
-        bottom += layer.height
+        bottom += layer.thickness
     end
 
     Threads.@threads for p in 1:length(pointstate)
@@ -139,9 +139,9 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
         σ_y = 0.0
         for layer in soillayers[begin:layerindex-1]
             ρ₀ = layer.dry_density
-            σ_y += -ρ₀ * g * layer.height
+            σ_y += -ρ₀ * g * layer.thickness
         end
-        h = sum(layer -> layer.height, soillayers[layerindex:end])
+        h = sum(layer -> layer.thickness, soillayers[layerindex:end])
         layer = soillayers[layerindex]
         y = pointstate.x[p][2]
         ρ0 = layer.dry_density
