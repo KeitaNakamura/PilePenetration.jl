@@ -35,7 +35,8 @@ struct PointState
     ∇v::SecondOrderTensor{3, Float64, 9}
     C::Mat{2, 3, Float64, 6}
     side_length::Vec{2, Float64}
-    friction_with_pile::Float64
+    friction_with_pile_inside::Float64
+    friction_with_pile_outside::Float64
     index::Int
     layerindex::Int
 end
@@ -150,7 +151,8 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
                                  0.0 σ_y 0.0
                                  0.0 0.0 σ_x]) |> symmetric
         pointstate.m[p] = (γ0/g) * pointstate.V[p]
-        pointstate.friction_with_pile[p] = layer.friction_with_pile
+        pointstate.friction_with_pile_inside[p] = layer.friction_with_pile_inside
+        pointstate.friction_with_pile_outside[p] = layer.friction_with_pile_outside
     end
     @. pointstate.b = Vec(0.0, -g)
     Poingr.reorder_pointstate!(pointstate, cache)
@@ -244,7 +246,11 @@ function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Poly
         vₚ = pointstate.v[p]
         fcn = N * contact_normal_force(pile, pointstate.x[p], pointstate.m[p], pointstate.side_length[p] * contact_threshold_scale, contact_penalty_parameter, dt)
         vᵣ = w * (vₚ - v_pile)
-        μ = w * pointstate.friction_with_pile[p]
+        if fcn[1] > 0
+            μ = w * pointstate.friction_with_pile_inside[p]
+        else
+            μ = w * pointstate.friction_with_pile_outside[p]
+        end
         fcn, vᵣ, w, μ
     end
     @dot_threads grid.state.vᵣ /= grid.state.w_pile
