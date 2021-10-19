@@ -42,15 +42,19 @@ jobs:
         run: julia --proj=@. -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url = "https://github.com/KeitaNakamura/KeitaNakamuraRegistry.git"))'
         shell: bash
       - uses: julia-actions/julia-buildpkg@v1
+      - name: Get tag name
+        id: get_tag
+        run: echo ::set-output name=TAG::${GITHUB_REF/refs\/tags\//}
+        shell: bash
       - name: Compile package
-        run: julia --proj=@. -e 'using Pkg; Pkg.add("PackageCompiler"); using PackageCompiler; create_app(".", "${{ env.packagename }} (${{ runner.os }})")'
+        run: julia --proj=@. -e 'using Pkg; Pkg.add("PackageCompiler"); using PackageCompiler; create_app(".", "${{ env.packagename }} ${{ steps.get_tag.outputs.TAG }} (${{ runner.os }})")'
         shell: bash
       - name: Zip build directory for Linux/MacOS
         if: runner.os == 'Linux' || runner.os == 'macOS'
-        run: zip -r ${{ runner.os }} "${{ env.packagename }} (${{ runner.os }})"
+        run: zip -r ${{ runner.os }} "${{ env.packagename }} ${{ steps.get_tag.outputs.TAG }} (${{ runner.os }})"
       - name: Zip build directory for Windows
         if: runner.os == 'Windows'
-        run: Compress-Archive -Path "${{ env.packagename }} (Windows)" -DestinationPath Windows
+        run: Compress-Archive -Path "${{ env.packagename }} ${{ steps.get_tag.outputs.TAG }} (Windows)" -DestinationPath Windows
       - name: Upload zip files
         uses: actions/upload-artifact@v2
         with:
