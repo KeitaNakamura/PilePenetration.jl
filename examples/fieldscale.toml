@@ -2,7 +2,7 @@
 
 [General]
 coordinate_system = "axisymmetric" # plane_strain or axisymmetric
-domain = [[0.0, 6.0], [0.0, 30.0]] # [[xmin, xmax], [ymin, ymax]] (m)
+domain = [[0.0, 6.0], [0.0, 21.0]] # [[xmin, xmax], [ymin, ymax]] (m)
 grid_space = 0.02  # (m)
 gravity = 9.81     # (m/s2)
 total_time = 14.8  # (sec)
@@ -11,20 +11,20 @@ output_folder_name = "output.tmp"
 show_progress = true
 
 [[SoilLayer]]
-height = 20.0 # (m)
-dry_density = 1550.0 # (kg/m3)
+thickness = 20.0 # (m)
+unit_weight = 10e3 # (N/m3)
 poissons_ratio = 0.333
 youngs_modulus = 10e6 # (N/m2)
 friction_angle = 35.0 # (degree)
 dilatancy_angle = 0.0 # (degree)
+friction_with_pile = 0.47
 
 [Pile]
 diameter_head = 1.5   # (m)
-diameter_tip  = 1.0   # (m)
+diameter_tip  = 1.221 # (m)
 pile_length = 20.0    # (m)
 tapered_length = 4.0  # (m)
 thickness = 0.04      # (m) NOTE: This must be at least `2 * grid_space`
-friction_with_ground = 0.47
 velocity = 1.0   # (m/s)
 vacuum = false
 vacuum_height = 1.5  # (m)
