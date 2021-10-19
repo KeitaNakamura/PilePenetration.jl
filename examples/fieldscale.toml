@@ -17,14 +17,14 @@ poissons_ratio = 0.333
 youngs_modulus = 10e6 # (N/m2)
 friction_angle = 35.0 # (degree)
 dilatancy_angle = 0.0 # (degree)
+friction_with_pile = 0.47
 
 [Pile]
 diameter_head = 1.5   # (m)
-diameter_tip  = 1.0   # (m)
+diameter_tip  = 1.221 # (m)
 pile_length = 20.0    # (m)
 tapered_length = 4.0  # (m)
 thickness = 0.04      # (m) NOTE: This must be at least `2 * grid_space`
-friction_with_ground = 0.47
 velocity = 1.0   # (m/s)
 vacuum = false
 vacuum_height = 1.5  # (m)
