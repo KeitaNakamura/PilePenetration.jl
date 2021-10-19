@@ -26,13 +26,12 @@ end
 
 struct PointState
     m::Float64
-    V0::Float64
+    V::Float64
     x::Vec{2, Float64}
     v::Vec{2, Float64}
     b::Vec{2, Float64}
     σ::SymmetricSecondOrderTensor{3, Float64, 6}
-    σ0::SymmetricSecondOrderTensor{3, Float64, 6}
-    F::SecondOrderTensor{3, Float64, 9}
+    ϵ::SymmetricSecondOrderTensor{3, Float64, 6}
     ∇v::SecondOrderTensor{3, Float64, 9}
     C::Mat{2, 3, Float64, 6}
     side_length::Vec{2, Float64}
@@ -150,12 +149,10 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
         pointstate.σ[p] = (@Mat [σ_x 0.0 0.0
                                  0.0 σ_y 0.0
                                  0.0 0.0 σ_x]) |> symmetric
-        pointstate.m[p] = (γ0/g) * pointstate.V0[p]
+        pointstate.m[p] = (γ0/g) * pointstate.V[p]
         pointstate.friction_with_pile[p] = layer.friction_with_pile
     end
-    @. pointstate.F = one(SecondOrderTensor{3,Float64})
     @. pointstate.b = Vec(0.0, -g)
-    @. pointstate.σ0 = pointstate.σ
     Poingr.reorder_pointstate!(pointstate, cache)
 
     R_i = D_i / 2 # radius
@@ -201,7 +198,7 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     logger = Logger(0.0:INPUT.General.output_interval:total_time; progress = INPUT.General.show_progress)
     while !isfinised(logger, t)
         dt = minimum(pointstate) do p
-            ρ = p.m / (p.V0 * det(p.F))
+            ρ = p.m / p.V
             elastic = layermodels[p.layerindex].elastic
             vc = soundspeed(elastic.K, elastic.G, ρ)
             CFL * dx / vc
@@ -261,20 +258,27 @@ function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, layermodel
     default_grid_to_point!(pointstate, grid, cache, dt)
     @inbounds Threads.@threads for p in eachindex(pointstate)
         model = layermodels[pointstate.layerindex[p]]
-        σ = update_stress(model, pointstate.σ[p], symmetric(pointstate.∇v[p]) * dt)
-        σ = Poingr.jaumann_stress(σ, pointstate.σ[p], pointstate.∇v[p], dt)
-        F = pointstate.F[p]
+        ∇v = pointstate.∇v[p]
+        σ_n = pointstate.σ[p]
+        dϵ = symmetric(∇v) * dt
+        σ = update_stress(model, σ_n, dϵ)
+        σ = Poingr.jaumann_stress(σ, σ_n, ∇v, dt)
         if mean(σ) > 0
+            # In this case, since the soil particles are not contacted with
+            # each other, soils should not act as continuum.
+            # This means that the deformation based on the contitutitive model
+            # no longer occurs.
+            # So, in this process, we just calculate the elastic strain to keep
+            # the consistency with the stress which is on the edge of the yield
+            # function, and ignore the plastic strain to prevent excessive generation.
+            # If we include this plastic strain, the volume of the material points
+            # will continue to increase unexpectedly.
             σ = zero(σ)
-            ϵv = tr(model.elastic.Dinv ⊡ (σ - pointstate.σ0[p]))
-            J = exp(ϵv)
-            F = J^(1/3) * one(F)
-        end
-        if det(F) < 0
-            F = zero(F)
+            dϵ = model.elastic.Dinv ⊡ (σ - σ_n)
         end
         pointstate.σ[p] = σ
-        pointstate.F[p] = F
+        pointstate.ϵ[p] += dϵ
+        pointstate.V[p] *= exp(tr(dϵ))
     end
 end
 
@@ -289,15 +293,15 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
     paraview_collection(paraview_file, append = true) do pvd
         vtk_multiblock(string(paraview_file, logindex(logger))) do vtm
             vtk_points(vtm, pointstate.x) do vtk
-                ϵₚ = @dot_lazy symmetric(pointstate.F - $Ref(I))
+                ϵ = pointstate.ϵ
                 vtk["velocity"] = pointstate.v
                 vtk["mean stress"] = @dot_lazy -mean(pointstate.σ)
                 vtk["deviatoric stress"] = @dot_lazy deviatoric_stress(pointstate.σ)
-                vtk["volumetric strain"] = @dot_lazy volumetric_strain(ϵₚ)
-                vtk["deviatoric strain"] = @dot_lazy deviatoric_strain(ϵₚ)
+                vtk["volumetric strain"] = @dot_lazy volumetric_strain(ϵ)
+                vtk["deviatoric strain"] = @dot_lazy deviatoric_strain(ϵ)
                 vtk["stress"] = @dot_lazy -pointstate.σ
-                vtk["strain"] = ϵₚ
-                vtk["density"] = @dot_lazy pointstate.m / (pointstate.V0 * det(pointstate.F))
+                vtk["strain"] = ϵ
+                vtk["density"] = @dot_lazy pointstate.m / pointstate.V
                 vtk["soil layer"] = pointstate.layerindex
             end
             vtk_grid(vtm, pile)
