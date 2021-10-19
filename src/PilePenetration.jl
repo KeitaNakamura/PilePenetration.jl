@@ -114,7 +114,6 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     cache = MPCache(grid, pointstate.x)
 
     layermodels = map(soillayers) do layer
-        ρ₀ = layer.dry_density
         E = layer.youngs_modulus
         ν = layer.poissons_ratio
         ϕ = layer.friction_angle
@@ -138,20 +137,20 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
         layerindex = pointstate.layerindex[p]
         σ_y = 0.0
         for layer in soillayers[begin:layerindex-1]
-            ρ₀ = layer.dry_density
-            σ_y += -ρ₀ * g * layer.thickness
+            γ₀ = layer.unit_weight
+            σ_y += -γ₀ * layer.thickness
         end
         h = sum(layer -> layer.thickness, soillayers[layerindex:end])
         layer = soillayers[layerindex]
         y = pointstate.x[p][2]
-        ρ0 = layer.dry_density
+        γ0 = layer.unit_weight
         ν = layer.poissons_ratio
-        σ_y += -ρ0 * g * (h - y)
+        σ_y += -γ0 * (h - y)
         σ_x = σ_y * ν / (1 - ν)
         pointstate.σ[p] = (@Mat [σ_x 0.0 0.0
                                  0.0 σ_y 0.0
                                  0.0 0.0 σ_x]) |> symmetric
-        pointstate.m[p] = ρ0 * pointstate.V0[p]
+        pointstate.m[p] = (γ0/g) * pointstate.V0[p]
         pointstate.friction_with_pile[p] = layer.friction_with_pile
     end
     @. pointstate.F = one(SecondOrderTensor{3,Float64})

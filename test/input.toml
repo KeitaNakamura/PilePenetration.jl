@@ -12,7 +12,7 @@ show_progress = false
 
 [[SoilLayer]]
 thickness = 0.2 # (m)
-dry_density = 1300.0 # (kg/m3)
+unit_weight = 12753.0 # (kg/m3)
 poissons_ratio = 0.333
 youngs_modulus = 1e6  # (N/m2)
 friction_angle = 28.0 # (degree)
@@ -21,7 +21,7 @@ friction_with_pile = 0.35
 
 [[SoilLayer]]
 thickness = 0.8 # (m)
-dry_density = 1500.0 # (kg/m3)
+unit_weight = 14715.0 # (kg/m3)
 poissons_ratio = 0.333
 youngs_modulus = 1e6  # (N/m2)
 friction_angle = 32.0 # (degree)

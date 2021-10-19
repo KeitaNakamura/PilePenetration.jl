@@ -12,7 +12,7 @@ show_progress = true
 
 [[SoilLayer]]
 thickness = 3.0 # (m)
-dry_density = 1500.0 # (kg/m3)
+unit_weight = 14715.0 # (N/m3)
 poissons_ratio = 0.333
 youngs_modulus = 2e6  # (N/m2)
 friction_angle = 32.0 # (degree)
