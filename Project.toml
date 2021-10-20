@@ -1,7 +1,7 @@
 name = "PilePenetration"
 uuid = "ad004015-217e-4e1b-bc46-a8171541e4a1"
 authors = ["Keita Nakamura <keita.nakamura.1109@gmail.com>"]
-version = "0.3.0"
+version = "0.4.0"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
