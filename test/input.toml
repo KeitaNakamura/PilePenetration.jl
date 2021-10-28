@@ -17,7 +17,9 @@ poissons_ratio = 0.333
 youngs_modulus = 1e6  # (N/m2)
 friction_angle = 28.0 # (degree)
 dilatancy_angle = 0.0 # (degree)
-friction_with_pile_inside = 0.35
+cohesion = 0.0        # (N/m2)
+tension_cutoff = 0.0  # (N/m2)
+friction_with_pile_inside  = 0.35
 friction_with_pile_outside = 0.35
 
 [[SoilLayer]]
@@ -27,7 +29,9 @@ poissons_ratio = 0.333
 youngs_modulus = 1e6  # (N/m2)
 friction_angle = 32.0 # (degree)
 dilatancy_angle = 0.0 # (degree)
-friction_with_pile_inside = 0.41
+cohesion = 0.0        # (N/m2)
+tension_cutoff = 0.0  # (N/m2)
+friction_with_pile_inside  = 0.41
 friction_with_pile_outside = 0.41
 
 [Pile]
