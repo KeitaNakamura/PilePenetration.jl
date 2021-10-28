@@ -118,8 +118,10 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
         ν = layer.poissons_ratio
         ϕ = layer.friction_angle
         ψ = layer.dilatancy_angle
+        c = layer.cohesion
+        tension_cutoff = layer.tension_cutoff
         elastic = LinearElastic(; E, ν)
-        DruckerPrager(elastic, :circumscribed; c = 0.0, ϕ, ψ)
+        DruckerPrager(elastic, :circumscribed; c, ϕ, ψ, tension_cutoff)
     end
     bottom = ymin
     for i in length(soillayers):-1:1 # from low to high
