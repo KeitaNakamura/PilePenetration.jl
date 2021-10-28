@@ -209,7 +209,7 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
         update!(cache, grid, pointstate.x)
         P2G!(grid, pointstate, cache, pile, v_pile, dt, INPUT)
         for bd in eachboundary(grid)
-            @. grid.state.v[bd.indices] = boundary_velocity(grid.state.v[bd.indices], bd.n)
+            @inbounds grid.state.v[bd.I] = boundary_velocity(grid.state.v[bd.I], bd.n)
         end
         G2P!(pointstate, grid, cache, layermodels, pile, dt)
 
