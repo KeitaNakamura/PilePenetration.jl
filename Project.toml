@@ -1,7 +1,7 @@
 name = "PilePenetration"
 uuid = "ad004015-217e-4e1b-bc46-a8171541e4a1"
 authors = ["Keita Nakamura <keita.nakamura.1109@gmail.com>"]
-version = "0.4.0"
+version = "0.4.1"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
@@ -14,6 +14,6 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [compat]
 GeometricObjects = "0.3"
-Poingr = "0.12"
+Poingr = "0.13"
 StructArrays = "0.6"
 julia = "1.6"
