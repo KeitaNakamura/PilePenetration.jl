@@ -271,7 +271,7 @@ function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, layermodel
         dϵ = symmetric(∇v) * dt
         σ = update_stress(model, σ_n, dϵ)
         σ = Poingr.jaumann_stress(σ, σ_n, ∇v, dt)
-        if mean(σ) > 0
+        if mean(σ) > model.tension_cutoff
             # In this case, since the soil particles are not contacted with
             # each other, soils should not act as continuum.
             # This means that the deformation based on the contitutitive model
@@ -281,7 +281,8 @@ function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, layermodel
             # function, and ignore the plastic strain to prevent excessive generation.
             # If we include this plastic strain, the volume of the material points
             # will continue to increase unexpectedly.
-            σ = zero(σ)
+            σ_tr = update_stress(model.elastic, σ_n, dϵ)
+            σ = Poingr.tension_cutoff(model, σ_tr)
             dϵ = model.elastic.Dinv ⊡ (σ - σ_n)
         end
         pointstate.σ[p] = σ
