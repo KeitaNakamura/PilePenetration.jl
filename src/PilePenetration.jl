@@ -346,7 +346,7 @@ function extract_contact_forces(fcᵢ, grid, pile)
         y = grid[I][2] - tip_height(pile)
         fcy = -2π * fcᵢ[I][2]
         iszero(fcy) && continue
-        if y < 0
+        if y < gridsteps(grid, 2)
             output = tip
         else
             centerline1 = Line(((getline(pile, 1) + reverse(getline(pile, 5))) / 2)...)
