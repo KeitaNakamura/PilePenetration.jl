@@ -192,7 +192,7 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     ## history
     outputs["history file"] = joinpath(output_dir, "history.csv")
     open(outputs["history file"], "w") do io
-        writedlm(io, ["disp" "force" "disp_inside_pile" "tip" "inside" "outside" "tip_design" "inside_design" "outside_design"], ',')
+        writedlm(io, ["disp" "force" "disp_inside_pile" "tip" "inside" "outside" "taper" "straight" "tip_design" "inside_design" "outside_design" "taper_design" "straight_design"], ',')
     end
     ## forces
     outputs["force inside directory"] = joinpath(output_dir, "force_inside")
@@ -230,7 +230,7 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
                 inds = findall(xₚ -> (xₚ in pile_inside) && xₚ[2] > (tip_height(pile) + vacuum_height), pointstate.x)
                 StructArrays.foreachfield(v -> deleteat!(v, inds), pointstate)
             end
-            writeoutput(outputs, grid, pointstate, pile, logger, ground_height_0, pile_center_0, t)
+            writeoutput(outputs, grid, pointstate, pile, logger, ground_height_0, pile_center_0, t, INPUT)
         end
     end
 end
@@ -296,7 +296,7 @@ function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, layermodel
     end
 end
 
-function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::AbstractVector, pile::Polygon, logger, ground_height_0::Real, pile_center_0::Vec, t::Real)
+function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::AbstractVector, pile::Polygon, logger, ground_height_0::Real, pile_center_0::Vec, t::Real, INPUT)
     output_dir = outputs["output directory"]
     paraview_file = outputs["paraview file"]
     history_file = outputs["history file"]
@@ -326,7 +326,6 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
         end
     end
 
-    D = pile[1][1]
     inside_total, outside_total = extract_contact_forces(grid.state.fc, grid, pile)
 
     open(history_file, "a") do io
@@ -334,8 +333,13 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
         force = -sum(grid.state.fc)[2] * 2π
         disp_inside_pile = -(find_ground_pos(pointstate.x, gridsteps(grid, 1)) - ground_height_0)
         tip, inside, outside = divide_force_into_tip_inside_outside(gridsteps(grid, 2), inside_total, outside_total)
-        tip_design, inside_design, outside_design = divide_force_into_tip_inside_outside(1D, inside_total, outside_total)
-        writedlm(io, [disp force disp_inside_pile tip inside outside tip_design inside_design outside_design], ',')
+        tip_design, inside_design, outside_design = divide_force_into_tip_inside_outside(INPUT.Pile.diameter_head, inside_total, outside_total)
+        tip_taper, _, _ = divide_force_into_tip_inside_outside(INPUT.Pile.tapered_length, inside_total, outside_total)
+        taper = tip_taper - tip
+        straight = force - tip_taper
+        taper_design = tip_taper - tip_design
+        straight_design = force - tip_taper
+        writedlm(io, [disp force disp_inside_pile tip inside outside taper straight tip_design inside_design outside_design taper_design straight_design], ',')
     end
     open(joinpath(force_inside_directory, "force_inside_$(logindex(logger)).csv"), "w") do io
         writedlm(io, ["height" "force"], ',')
