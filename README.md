@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/KeitaNakamura/PilePenetration.jl/workflows/CI/badge.svg)](https://github.com/KeitaNakamura/PilePenetration.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/KeitaNakamura/PilePenetration.jl/branch/main/graph/badge.svg?token=DPE75E110O)](https://codecov.io/gh/KeitaNakamura/PilePenetration.jl)
 
-## Run using [Julia](https://julialang.org) REPL
+## Use [Julia](https://julialang.org) REPL
 
 1. Add registry
 
@@ -27,7 +27,7 @@ julia> PilePenetration.main("path/to/input.toml")
 See files in `examples` for `input.toml`.
 
 
-## Run using execution file
+## Use execution file
 
 1. Download execution files from [releases](https://github.com/KeitaNakamura/PilePenetration.jl/releases)
 
