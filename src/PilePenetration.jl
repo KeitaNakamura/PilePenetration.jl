@@ -185,7 +185,7 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     ## history
     outputs["history file"] = joinpath(output_dir, "history.csv")
     open(outputs["history file"], "w") do io
-        writedlm(io, ["disp" "force" "disp_inside_pile" "tip_resistance" "inside_resistance" "outside_resistance"], ',')
+        writedlm(io, ["disp" "force" "disp_inside_pile" "tip" "inside" "outside" "tip_design" "inside_design" "outside_design"], ',')
     end
     ## forces
     outputs["force tip directory"] = joinpath(output_dir, "force_tip")
@@ -322,12 +322,14 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
         end
     end
 
-    tip, inside, outside = extract_contact_forces(grid.state.fc, grid, pile)
+    D = pile[1][1]
+    tip, inside, outside = extract_contact_forces(grid.state.fc, grid, pile, gridsteps(grid, 2))
+    tip_design, inside_design, outside_design = extract_contact_forces(grid.state.fc, grid, pile, 1D)
     open(history_file, "a") do io
         disp = norm(centroid(pile) - pile_center_0)
         force = -sum(grid.state.fc)[2] * 2π
         disp_inside_pile = -(find_ground_pos(pointstate.x, gridsteps(grid, 1)) - ground_height_0)
-        writedlm(io, [disp force disp_inside_pile sum(@view tip[:,3]) sum(@view inside[:,3]) sum(@view outside[:,3])], ',')
+        writedlm(io, [disp force disp_inside_pile sum(@view tip[:,3]) sum(@view inside[:,3]) sum(@view outside[:,3]) sum(@view tip_design[:,3]) sum(@view inside_design[:,3]) sum(@view outside_design[:,3])], ',')
     end
     open(io -> writedlm(io, tip, ','), joinpath(force_tip_directory, "force_tip_$(logindex(logger)).csv"), "w")
     open(io -> writedlm(io, inside, ','), joinpath(force_inside_directory, "force_inside_$(logindex(logger)).csv"), "w")
@@ -337,7 +339,7 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
               (; pointstate, grid, pile))
 end
 
-function extract_contact_forces(fcᵢ, grid, pile)
+function extract_contact_forces(fcᵢ, grid, pile, tip_height_thresh)
     tip = Float64[]
     inside = Float64[]
     outside = Float64[]
@@ -346,7 +348,7 @@ function extract_contact_forces(fcᵢ, grid, pile)
         y = grid[I][2] - tip_height(pile)
         fcy = -2π * fcᵢ[I][2]
         iszero(fcy) && continue
-        if y < gridsteps(grid, 2)
+        if y < tip_height_thresh
             output = tip
         else
             centerline1 = Line(((getline(pile, 1) + reverse(getline(pile, 5))) / 2)...)
