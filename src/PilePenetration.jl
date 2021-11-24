@@ -179,8 +179,11 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     output_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
     mkpath(output_dir)
     outputs["output directory"] = output_dir
+    ## serialize
+    mkpath(joinpath(output_dir, "serialize"))
     ## paraview
-    outputs["paraview file"] = joinpath(output_dir, "out")
+    mkpath(joinpath(output_dir, "paraview"))
+    outputs["paraview file"] = joinpath(output_dir, "paraview", "output")
     paraview_collection(vtk_save, outputs["paraview file"])
     ## history
     outputs["history file"] = joinpath(output_dir, "history.csv")
@@ -188,10 +191,8 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
         writedlm(io, ["disp" "force" "disp_inside_pile" "tip" "inside" "outside" "tip_design" "inside_design" "outside_design"], ',')
     end
     ## forces
-    outputs["force tip directory"] = joinpath(output_dir, "force_tip")
     outputs["force inside directory"] = joinpath(output_dir, "force_inside")
     outputs["force outside directory"] = joinpath(output_dir, "force_outside")
-    mkpath(outputs["force tip directory"])
     mkpath(outputs["force inside directory"])
     mkpath(outputs["force outside directory"])
 
@@ -295,7 +296,6 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
     output_dir = outputs["output directory"]
     paraview_file = outputs["paraview file"]
     history_file = outputs["history file"]
-    force_tip_directory = outputs["force tip directory"]
     force_inside_directory = outputs["force inside directory"]
     force_outside_directory = outputs["force outside directory"]
 
@@ -323,44 +323,63 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
     end
 
     D = pile[1][1]
-    tip, inside, outside = extract_contact_forces(grid.state.fc, grid, pile, gridsteps(grid, 2))
-    tip_design, inside_design, outside_design = extract_contact_forces(grid.state.fc, grid, pile, 1D)
+    inside_total, outside_total = extract_contact_forces(grid.state.fc, grid, pile)
+
     open(history_file, "a") do io
         disp = norm(centroid(pile) - pile_center_0)
         force = -sum(grid.state.fc)[2] * 2π
         disp_inside_pile = -(find_ground_pos(pointstate.x, gridsteps(grid, 1)) - ground_height_0)
-        writedlm(io, [disp force disp_inside_pile sum(@view tip[:,3]) sum(@view inside[:,3]) sum(@view outside[:,3]) sum(@view tip_design[:,3]) sum(@view inside_design[:,3]) sum(@view outside_design[:,3])], ',')
+        tip, inside, outside = divide_force_into_tip_inside_outside(gridsteps(grid, 2), inside_total, outside_total)
+        tip_design, inside_design, outside_design = divide_force_into_tip_inside_outside(1D, inside_total, outside_total)
+        writedlm(io, [disp force disp_inside_pile tip inside outside tip_design inside_design outside_design], ',')
     end
-    open(io -> writedlm(io, tip, ','), joinpath(force_tip_directory, "force_tip_$(logindex(logger)).csv"), "w")
-    open(io -> writedlm(io, inside, ','), joinpath(force_inside_directory, "force_inside_$(logindex(logger)).csv"), "w")
-    open(io -> writedlm(io, outside, ','), joinpath(force_outside_directory, "force_outside_$(logindex(logger)).csv"), "w")
+    open(joinpath(force_inside_directory, "force_inside_$(logindex(logger)).csv"), "w") do io
+        writedlm(io, ["height" "force"], ',')
+        writedlm(io, inside_total, ',')
+    end
+    open(joinpath(force_outside_directory, "force_outside_$(logindex(logger)).csv"), "w") do io
+        writedlm(io, ["height" "force"], ',')
+        writedlm(io, outside_total, ',')
+    end
 
-    serialize(joinpath(output_dir, string("save", logindex(logger))),
+    serialize(joinpath(output_dir, "serialize", string("save", logindex(logger))),
               (; pointstate, grid, pile))
 end
 
-function extract_contact_forces(fcᵢ, grid, pile, tip_height_thresh)
-    tip = Float64[]
-    inside = Float64[]
-    outside = Float64[]
+function divide_force_into_tip_inside_outside(height_thresh, inside_total, outside_total)
+    index_inside = searchsortedfirst(view(inside_total, :, 1), height_thresh) - 1
+    index_outside = searchsortedfirst(view(outside_total, :, 1), height_thresh) - 1
+    tip = sum(@view inside_total[begin:index_inside, 2]) + sum(@view outside_total[begin:index_outside, 2])
+    inside = sum(@view inside_total[index_inside+1:end, 2])
+    outside = sum(@view outside_total[index_outside+1:end, 2])
+    tip, inside, outside
+end
+
+function extract_contact_forces(fcᵢ, grid, pile)
+    inside = Dict{Float64, Float64}()
+    outside = Dict{Float64, Float64}()
     for I in eachindex(fcᵢ) # walk from lower height
-        x = grid[I][1]
         y = grid[I][2] - tip_height(pile)
         fcy = -2π * fcᵢ[I][2]
         iszero(fcy) && continue
-        if y < tip_height_thresh
-            output = tip
-        else
-            centerline1 = Line(((getline(pile, 1) + reverse(getline(pile, 5))) / 2)...)
-            centerline2 = Line(((getline(pile, 2) + reverse(getline(pile, 4))) / 2)...)
-            isinside = GeometricObjects.ray_casting_to_right(centerline1, grid[I]) ||
-                       GeometricObjects.ray_casting_to_right(centerline2, grid[I])
-            output = isinside ? inside : outside
-        end
-        push!(output, x, y, fcy)
+        centerline1 = Line(((getline(pile, 1) + reverse(getline(pile, 5))) / 2)...)
+        centerline2 = Line(((getline(pile, 2) + reverse(getline(pile, 4))) / 2)...)
+        isinside = GeometricObjects.ray_casting_to_right(centerline1, grid[I]) ||
+        GeometricObjects.ray_casting_to_right(centerline2, grid[I])
+        output = isinside ? inside : outside
+        output[y] = get(output, y, 0.0) + fcy
     end
-    reshape_data = V -> reshape(V, 3, length(V)÷3)'
-    map(reshape_data, (tip, inside, outside))
+    function dict2array(dict)
+        data′ = collect(dict)
+        sort!(data′, by = x -> x[1])
+        data = Array{Float64}(undef, length(data′), 2)
+        @inbounds for i in 1:length(data′)
+            data[i,1] = data′[i][1]
+            data[i,2] = data′[i][2]
+        end
+        data
+    end
+    dict2array(inside), dict2array(outside)
 end
 
 function distanceto(poly::Polygon, x::Vec{dim}, l::Vec{dim}) where {dim}
