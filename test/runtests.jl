@@ -15,22 +15,21 @@ using Serialization
     for name in propertynames(output)
         output_col = output[name]
         history_col = history[name]
-        for i in length(output_col)
-            val = output_col[i]
-            @test 0.98*val < history_col[i] < 1.02*val # ±2%
-        end
+        @test history_col ≈ output_col atol=1e-4
     end
+
+    # check input.toml
+    @test TOML.parsefile("input.toml") == TOML.parsefile(joinpath(output_dir, "input.toml"))
 
     # check output files
     nums = 1:11
-    for (name, ext) in (("out", "vtm"),
-                        ("force_inside/force_inside_", "csv"),
-                        ("force_outside/force_outside_", "csv"),
-                        ("force_tip/force_tip_", "csv"))
-        @test all(i -> isfile(joinpath(output_dir, string(name, i, ".", ext))), nums)
+    for (name, ext) in (("paraview/output", ".vtm"),
+                        ("force_inside/force_inside_", ".csv"),
+                        ("force_outside/force_outside_", ".csv"))
+        @test all(i -> isfile(joinpath(output_dir, string(name, i, ext))), nums)
     end
     for i in nums
-        data = deserialize(joinpath(output_dir, "save$i"))
+        data = deserialize(joinpath(output_dir, "serialize", "save$i"))
         @test keys(data) === (:pointstate, :grid, :pile)
     end
 end
