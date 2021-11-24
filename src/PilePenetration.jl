@@ -75,7 +75,12 @@ function parseinput(inputtoml::AbstractString)
 end
 
 function main(inputtoml::AbstractString)
-    main(splitdir(inputtoml)[1], parseinput(inputtoml))
+    proj_dir = splitdir(inputtoml)[1]
+    INPUT = parseinput(inputtoml)
+    output_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
+    mkpath(output_dir)
+    cp(inputtoml, joinpath(output_dir, "input.toml"); force = true)
+    main(proj_dir, INPUT)
 end
 
 function main(proj_dir::AbstractString, INPUT::NamedTuple)
@@ -177,7 +182,6 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
     # Output files
     outputs = Dict{String, Any}()
     output_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
-    mkpath(output_dir)
     outputs["output directory"] = output_dir
     ## serialize
     mkpath(joinpath(output_dir, "serialize"))

@@ -21,6 +21,9 @@ using Serialization
         end
     end
 
+    # check input.toml
+    @test TOML.parsefile("input.toml") == TOML.parsefile(joinpath(output_dir, "input.toml"))
+
     # check output files
     nums = 1:11
     for (name, ext) in (("paraview/output", ".vtm"),
