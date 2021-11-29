@@ -23,12 +23,12 @@ using Serialization
     @test TOML.parsefile("input.toml") == TOML.parsefile(joinpath(output_dir, "input.toml"))
 
     # check paraview files
-    nums = 1:11
+    nums = 0:10
     @test all(i -> isfile(joinpath(output_dir, string("paraview/output", i, ".vtm"))), nums)
     # check serialize files
     for i in nums
         data = deserialize(joinpath(output_dir, "serialize", "save$i"))
-        @test keys(data) === (:pointstate, :grid, :pile, :t)
+        @test keys(data) === (:pointstate, :grid, :rigidbody, :t)
     end
 end
 

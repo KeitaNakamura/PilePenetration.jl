@@ -1,3 +1,4 @@
+using DelimitedFiles
 using NaturalSort
 
 function main_postprocess()::Cint
@@ -82,7 +83,16 @@ function outputhistory_head(file::AbstractString)
     end
 end
 
-function outputhistory_append(file::AbstractString, grid, pointstate, pile, tip_height, tapered_height, ground_height_0, pile_center_0)
+function outputhistory_append(
+        file::AbstractString,
+        grid,
+        pointstate,
+        pile,
+        tip_height,
+        tapered_height,
+        ground_height_0,
+        pile_center_0,
+    )
     inside_total, outside_total = extract_contact_forces(grid.state.fc, grid, pile)
     open(file, "a") do io
         disp = norm(centroid(pile) - pile_center_0)
@@ -153,3 +163,6 @@ function extract_contact_forces(fcᵢ, grid, pile)
     end
     dict2array(inside), dict2array(outside)
 end
+
+tip_height(pile) = pile[3][2]
+find_ground_pos(xₚ, dx) = maximum(x -> x[2], filter(x -> x[1] < dx, xₚ))
