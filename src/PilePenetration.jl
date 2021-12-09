@@ -34,7 +34,7 @@ struct PointState
     ϵ::SymmetricSecondOrderTensor{3, Float64, 6}
     ∇v::SecondOrderTensor{3, Float64, 9}
     C::Mat{2, 3, Float64, 6}
-    side_length::Vec{2, Float64}
+    r::Vec{2, Float64}
     friction_with_pile_inside::Float64
     friction_with_pile_outside::Float64
     index::Int
@@ -209,11 +209,11 @@ function main(proj_dir::AbstractString, INPUT::NamedTuple)
         dt = minimum(pointstate) do p
             ρ = p.m / p.V
             elastic = layermodels[p.layerindex].elastic
-            vc = soundspeed(elastic.K, elastic.G, ρ)
+            vc = matcalc(Val(:sound_speed), elastic.K, elastic.G, ρ)
             CFL * dx / vc
         end
 
-        update!(cache, grid, pointstate.x)
+        update!(cache, grid, pointstate)
         P2G!(grid, pointstate, cache, pile, v_pile, dt, INPUT)
         for bd in eachboundary(grid)
             @inbounds grid.state.v[bd.I] = boundary_velocity(grid.state.v[bd.I], bd.n)
@@ -244,14 +244,14 @@ function P2G!(grid::Grid, pointstate::AbstractVector, cache::MPCache, pile::Poly
 
     default_point_to_grid!(grid, pointstate, cache)
 
-    mask = @. distanceto($Ref(pile), pointstate.x, pointstate.side_length * contact_threshold_scale) !== nothing
+    mask = @. distance($Ref(pile), pointstate.x, minimum(pointstate.r) * contact_threshold_scale) !== nothing
     point_to_grid!((grid.state.fcn, grid.state.vᵣ, grid.state.w_pile, grid.state.friction_with_pile), cache, mask) do it, p, i
         @_inline_meta
         @_propagate_inbounds_meta
         N = it.N
         w = it.w
         vₚ = pointstate.v[p]
-        fcn = N * contact_normal_force(pile, pointstate.x[p], pointstate.m[p], pointstate.side_length[p] * contact_threshold_scale, contact_penalty_parameter, dt)
+        fcn = N * contact_normal_force(pile, pointstate.x[p], pointstate.m[p], pointstate.r[p] * contact_threshold_scale, contact_penalty_parameter, dt)
         vᵣ = w * (vₚ - v_pile)
         if fcn[1] > 0
             μ = w * pointstate.friction_with_pile_inside[p]
@@ -274,8 +274,8 @@ function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, layermodel
         ∇v = pointstate.∇v[p]
         σ_n = pointstate.σ[p]
         dϵ = symmetric(∇v) * dt
-        σ = update_stress(model, σ_n, dϵ)
-        σ = Poingr.jaumann_stress(σ, σ_n, ∇v, dt)
+        σ = matcalc(Val(:stress), model, σ_n, dϵ)
+        σ = matcalc(Val(:jaumann_stress), σ, σ_n, ∇v, dt)
         if mean(σ) > model.tension_cutoff
             # In this case, since the soil particles are not contacted with
             # each other, soils should not act as continuum.
@@ -286,7 +286,7 @@ function G2P!(pointstate::AbstractVector, grid::Grid, cache::MPCache, layermodel
             # function, and ignore the plastic strain to prevent excessive generation.
             # If we include this plastic strain, the volume of the material points
             # will continue to increase unexpectedly.
-            σ_tr = update_stress(model.elastic, σ_n, dϵ)
+            σ_tr = matcalc(Val(:stress), model.elastic, σ_n, dϵ)
             σ = Poingr.tension_cutoff(model, σ_tr)
             dϵ = model.elastic.Dinv ⊡ (σ - σ_n)
         end
@@ -390,13 +390,8 @@ function extract_contact_forces(fcᵢ, grid, pile)
     dict2array(inside), dict2array(outside)
 end
 
-function distanceto(poly::Polygon, x::Vec{dim}, l::Vec{dim}) where {dim}
-    thresh = mean(l) / 2
-    distance(poly, x, thresh)
-end
-
 function contact_normal_force(poly::Polygon, x::Vec{dim, T}, m::T, l::Vec{dim, T}, ξ, dt::T) where {dim, T}
-    thresh = mean(l) / 2
+    thresh = minimum(l)
     d = distance(poly, x, thresh)
     d === nothing && return zero(Vec{dim, T})
     norm_d = norm(d)
