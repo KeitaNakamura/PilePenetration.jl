@@ -147,9 +147,7 @@ function main_simulation(proj_dir::AbstractString, INPUT::NamedTuple)
     paraview_collection(vtk_save, outputs["paraview file"])
     ## history
     outputs["history file"] = joinpath(output_dir, "history.csv")
-    open(outputs["history file"], "w") do io
-        writedlm(io, ["disp" "force" "disp_inside_pile" "tip" "inside" "outside" "taper" "straight" "tip_design" "inside_design" "outside_design" "taper_design" "straight_design"], ',')
-    end
+    outputhistory_head(outputs["history file"])
 
     println("Start: ", now())
     println("Particles: ", length(pointstate))
@@ -250,7 +248,6 @@ end
 function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::AbstractVector, pile::Polygon, logger, ground_height_0::Real, pile_center_0::Vec, t::Real, INPUT)
     output_dir = outputs["output directory"]
     paraview_file = outputs["paraview file"]
-    history_file = outputs["history file"]
 
     paraview_collection(paraview_file, append = true) do pvd
         vtk_multiblock(string(paraview_file, logindex(logger))) do vtm
@@ -275,21 +272,16 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
         end
     end
 
-    inside_total, outside_total = extract_contact_forces(grid.state.fc, grid, pile)
-
-    open(history_file, "a") do io
-        disp = norm(centroid(pile) - pile_center_0)
-        force = -sum(grid.state.fc)[2] * 2π
-        disp_inside_pile = -(find_ground_pos(pointstate.x, gridsteps(grid, 1)) - ground_height_0)
-        tip, inside, outside = divide_force_into_tip_inside_outside(gridsteps(grid, 2), inside_total, outside_total)
-        tip_design, inside_design, outside_design = divide_force_into_tip_inside_outside(INPUT.Pile.diameter_head, inside_total, outside_total)
-        tip_taper, _, _ = divide_force_into_tip_inside_outside(INPUT.Pile.tapered_length, inside_total, outside_total)
-        taper = tip_taper - tip
-        straight = force - tip_taper
-        taper_design = tip_taper - tip_design
-        straight_design = force - tip_taper
-        writedlm(io, [disp force disp_inside_pile tip inside outside taper straight tip_design inside_design outside_design taper_design straight_design], ',')
-    end
+    outputhistory_append(
+        outputs["history file"],
+        grid,
+        pointstate,
+        pile,
+        INPUT.Pile.diameter_head,
+        INPUT.Pile.tapered_length,
+        ground_height_0,
+        pile_center_0,
+    )
 
     serialize(joinpath(output_dir, "serialize", string("save", logindex(logger))),
               (; pointstate, grid, pile, t))
