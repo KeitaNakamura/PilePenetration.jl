@@ -30,6 +30,6 @@ using Serialization
     end
     for i in nums
         data = deserialize(joinpath(output_dir, "serialize", "save$i"))
-        @test keys(data) === (:pointstate, :grid, :pile)
+        @test keys(data) === (:pointstate, :grid, :pile, :t)
     end
 end
