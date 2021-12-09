@@ -150,11 +150,6 @@ function main_simulation(proj_dir::AbstractString, INPUT::NamedTuple)
     open(outputs["history file"], "w") do io
         writedlm(io, ["disp" "force" "disp_inside_pile" "tip" "inside" "outside" "taper" "straight" "tip_design" "inside_design" "outside_design" "taper_design" "straight_design"], ',')
     end
-    ## forces
-    outputs["force inside directory"] = joinpath(output_dir, "force_inside")
-    outputs["force outside directory"] = joinpath(output_dir, "force_outside")
-    mkpath(outputs["force inside directory"])
-    mkpath(outputs["force outside directory"])
 
     println("Start: ", now())
     println("Particles: ", length(pointstate))
@@ -256,8 +251,6 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
     output_dir = outputs["output directory"]
     paraview_file = outputs["paraview file"]
     history_file = outputs["history file"]
-    force_inside_directory = outputs["force inside directory"]
-    force_outside_directory = outputs["force outside directory"]
 
     paraview_collection(paraview_file, append = true) do pvd
         vtk_multiblock(string(paraview_file, logindex(logger))) do vtm
@@ -296,14 +289,6 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
         taper_design = tip_taper - tip_design
         straight_design = force - tip_taper
         writedlm(io, [disp force disp_inside_pile tip inside outside taper straight tip_design inside_design outside_design taper_design straight_design], ',')
-    end
-    open(joinpath(force_inside_directory, "force_inside_$(logindex(logger)).csv"), "w") do io
-        writedlm(io, ["height" "force"], ',')
-        writedlm(io, inside_total, ',')
-    end
-    open(joinpath(force_outside_directory, "force_outside_$(logindex(logger)).csv"), "w") do io
-        writedlm(io, ["height" "force"], ',')
-        writedlm(io, outside_total, ',')
     end
 
     serialize(joinpath(output_dir, "serialize", string("save", logindex(logger))),
