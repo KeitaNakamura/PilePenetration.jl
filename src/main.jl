@@ -307,7 +307,7 @@ function writeoutput(outputs::Dict{String, Any}, grid::Grid, pointstate::Abstrac
     end
 
     serialize(joinpath(output_dir, "serialize", string("save", logindex(logger))),
-              (; pointstate, grid, pile))
+              (; pointstate, grid, pile, t))
 end
 
 function contact_normal_force(poly::Polygon, x::Vec{dim, T}, m::T, l::Vec{dim, T}, ξ, dt::T) where {dim, T}
