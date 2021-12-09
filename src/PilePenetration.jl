@@ -19,7 +19,7 @@ function julia_main()::Cint
         inputtoml = ARGS[1]
     end
     try
-        main(inputtoml)
+        main_simulation(inputtoml)
     catch
         Base.invokelatest(Base.display_error, Base.catch_stack())
         return 1
@@ -45,7 +45,7 @@ function parseinput(inputtoml::AbstractString)
     parseinput(TOML.parsefile(inputtoml))
 end
 
-include("main.jl")
+include("simulation.jl")
 include("postprocess.jl")
 
 end # module

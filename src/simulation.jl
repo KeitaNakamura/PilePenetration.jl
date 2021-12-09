@@ -30,16 +30,16 @@ struct PointState
 end
 
 
-function main(inputtoml::AbstractString)
+function main_simulation(inputtoml::AbstractString)
     proj_dir = splitdir(inputtoml)[1]
     INPUT = parseinput(inputtoml)
     output_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
     mkpath(output_dir)
     cp(inputtoml, joinpath(output_dir, "input.toml"); force = true)
-    main(proj_dir, INPUT)
+    main_simulation(proj_dir, INPUT)
 end
 
-function main(proj_dir::AbstractString, INPUT::NamedTuple)
+function main_simulation(proj_dir::AbstractString, INPUT::NamedTuple)
 
     # General
     coordinate_system = INPUT.General.coordinate_system

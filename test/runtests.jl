@@ -6,7 +6,7 @@ using CSV
 using Serialization
 
 @testset "Short pile penetration" begin
-    PilePenetration.main("input.toml"); println()
+    PilePenetration.main_simulation("input.toml"); println()
     output_dir = TOML.parsefile("input.toml")["General"]["output_folder_name"]
 
     # check results
