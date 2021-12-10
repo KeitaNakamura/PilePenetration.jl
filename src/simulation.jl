@@ -31,11 +31,7 @@ end
 
 
 function main_simulation()::Cint
-    if isempty(ARGS)
-        inputtoml = "input.toml"
-    else
-        inputtoml = ARGS[1]
-    end
+    inputtoml = only(ARGS)
     try
         main_simulation(inputtoml)
     catch

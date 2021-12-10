@@ -1,11 +1,7 @@
 using NaturalSort
 
 function main_postprocess()::Cint
-    if isempty(ARGS)
-        inputtoml = "postprocess.toml"
-    else
-        inputtoml = ARGS[1]
-    end
+    inputtoml = only(ARGS)
     try
         main_postprocess(inputtoml)
     catch
