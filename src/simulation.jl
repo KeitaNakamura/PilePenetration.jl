@@ -154,6 +154,8 @@ function main_simulation(proj_dir::AbstractString, INPUT::NamedTuple)
 
     t = 0.0
     logger = Logger(0.0:INPUT.General.output_interval:total_time; progress = INPUT.General.show_progress)
+    update!(logger, t)
+    writeoutput(outputs, grid, pointstate, pile, logger, ground_height_0, pile_center_0, t, INPUT)
     while !isfinised(logger, t)
         dt = minimum(pointstate) do p
             ρ = p.m / p.V
