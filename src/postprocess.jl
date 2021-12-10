@@ -1,3 +1,54 @@
+function outputhistory_head(file::AbstractString)
+    open(file, "w") do io
+        write(io, join([
+            "disp",
+            "force",
+            "disp_inside_pile",
+            "tip",
+            "inside",
+            "outside",
+            "taper",
+            "straight",
+            "tip_design",
+            "inside_design",
+            "outside_design",
+            "taper_design",
+            "straight_design",
+        ], ",") * "\n")
+    end
+end
+
+function outputhistory_append(file::AbstractString, grid, pointstate, pile, tip_height, tapered_height, ground_height_0, pile_center_0)
+    inside_total, outside_total = extract_contact_forces(grid.state.fc, grid, pile)
+    open(file, "a") do io
+        disp = norm(centroid(pile) - pile_center_0)
+        force = -sum(grid.state.fc)[2] * 2π
+        disp_inside_pile = -(find_ground_pos(pointstate.x, gridsteps(grid, 1)) - ground_height_0)
+        tip, inside, outside = divide_force_into_tip_inside_outside(gridsteps(grid, 2), inside_total, outside_total)
+        tip_design, inside_design, outside_design = divide_force_into_tip_inside_outside(tip_height, inside_total, outside_total)
+        tip_taper, _, _ = divide_force_into_tip_inside_outside(tapered_height, inside_total, outside_total)
+        taper = tip_taper - tip
+        straight = force - tip_taper
+        taper_design = tip_taper - tip_design
+        straight_design = force - tip_taper
+        write(io, join([
+            disp,
+            force,
+            disp_inside_pile,
+            tip,
+            inside,
+            outside,
+            taper,
+            straight,
+            tip_design,
+            inside_design,
+            outside_design,
+            taper_design,
+            straight_design,
+        ], ",") * "\n")
+    end
+end
+
 function divide_force_into_tip_inside_outside(height_thresh, inside_total, outside_total)
     index_inside = searchsortedfirst(view(inside_total, :, 1), height_thresh) - 1
     index_outside = searchsortedfirst(view(outside_total, :, 1), height_thresh) - 1
