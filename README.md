@@ -22,7 +22,7 @@ pkg> add https://github.com/KeitaNakamura/PilePenetration.jl.git
 ```julia
 julia> using PilePenetration
 
-julia> PilePenetration.main("path/to/input.toml")
+julia> PilePenetration.main_simulation("path/to/input.toml")
 ```
 See files in `examples` for `input.toml`.
 
@@ -34,7 +34,7 @@ See files in `examples` for `input.toml`.
 2. Run the execution file
 
 ```bash
-$ path/to/bin/PilePenetration[.exe] path/to/input.toml
+$ path/to/bin/main_simulation[.exe] path/to/input.toml
 ```
 
 See files in `examples` for `input.toml`.
