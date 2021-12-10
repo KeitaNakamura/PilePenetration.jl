@@ -30,6 +30,21 @@ struct PointState
 end
 
 
+function main_simulation()::Cint
+    if isempty(ARGS)
+        inputtoml = "input.toml"
+    else
+        inputtoml = ARGS[1]
+    end
+    try
+        main_simulation(inputtoml)
+    catch
+        Base.invokelatest(Base.display_error, Base.catch_stack())
+        return 1
+    end
+    return 0
+end
+
 function main_simulation(inputtoml::AbstractString)
     proj_dir = splitdir(inputtoml)[1]
     INPUT = parseinput(inputtoml)

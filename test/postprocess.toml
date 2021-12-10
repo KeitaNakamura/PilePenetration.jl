@@ -1,0 +1,7 @@
+[General]
+output_folder_name = "postprocess.tmp"
+
+[OutputHistory]
+execute = true
+tip_height = 0.15      # (m)
+tapered_height = 0.715 # (m)

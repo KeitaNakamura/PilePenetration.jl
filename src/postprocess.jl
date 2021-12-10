@@ -1,3 +1,71 @@
+using NaturalSort
+
+function main_postprocess()::Cint
+    if isempty(ARGS)
+        inputtoml = "postprocess.toml"
+    else
+        inputtoml = ARGS[1]
+    end
+    try
+        main_postprocess(inputtoml)
+    catch
+        Base.invokelatest(Base.display_error, Base.catch_stack())
+        return 1
+    end
+    return 0
+end
+
+function main_postprocess(inputtoml::AbstractString)
+    proj_dir = splitdir(inputtoml)[1]
+    INPUT = parseinput(inputtoml)
+    postprocess_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
+    mkpath(postprocess_dir)
+    cp(inputtoml, joinpath(postprocess_dir, "postprocess.toml"); force = true)
+    main_postprocess(proj_dir, INPUT)
+end
+
+function main_postprocess(proj_dir::AbstractString, INPUT::NamedTuple)
+    data = readsavedata(joinpath(proj_dir, "serialize"))
+    postprocess_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
+    for name in keys(INPUT)
+        if startswith(string(name), "Output")
+            input = INPUT[name]
+            if input.execute
+                @eval $(Symbol(lowercase(string(name))))($postprocess_dir, $input, $data)
+            end
+        end
+    end
+end
+
+function readsavedata(savedatadir::AbstractString)
+    root, dirs, files = only(walkdir(savedatadir))
+    sort!(files, lt=natural)
+    map(files) do file
+        deserialize(joinpath(root, file))
+    end
+end
+
+function outputhistory(postprocess_dir::AbstractString, INPUT::NamedTuple, data)
+    file = joinpath(postprocess_dir, "history.csv")
+
+    ground_height_0 = find_ground_pos(data[1].pointstate.x, gridsteps(data[1].grid, 1))
+    pile_center_0 = centroid(data[1].pile)
+
+    outputhistory_head(file)
+    for d in data
+        outputhistory_append(
+            file,
+            d.grid,
+            d.pointstate,
+            d.pile,
+            INPUT.tip_height,
+            INPUT.tapered_height,
+            ground_height_0,
+            pile_center_0,
+        )
+    end
+end
+
 function outputhistory_head(file::AbstractString)
     open(file, "w") do io
         write(io, join([

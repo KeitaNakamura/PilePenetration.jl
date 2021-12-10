@@ -11,21 +11,6 @@ using Dates
 
 using Base: @_propagate_inbounds_meta, @_inline_meta
 
-function julia_main()::Cint
-    if isempty(ARGS)
-        inputtoml = "input.toml"
-    else
-        inputtoml = ARGS[1]
-    end
-    try
-        main_simulation(inputtoml)
-    catch
-        Base.invokelatest(Base.display_error, Base.catch_stack())
-        return 1
-    end
-    return 0
-end
-
 function parseinput(dict::Dict)
     dict2namedtuple(x::Dict) = (; (Symbol(key) => value for (key, value) in x)...)
     list = map(collect(keys(dict))) do section
