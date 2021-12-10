@@ -4,7 +4,6 @@ using Poingr
 using GeometricObjects
 using GeometricObjects: getline
 
-using StructArrays
 using DelimitedFiles
 using Serialization
 using TOML
