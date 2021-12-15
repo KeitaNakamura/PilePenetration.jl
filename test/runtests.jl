@@ -23,7 +23,7 @@ using Serialization
     @test TOML.parsefile("input.toml") == TOML.parsefile(joinpath(output_dir, "input.toml"))
 
     # check paraview files
-    nums = 0:10
+    nums = 1:11
     @test all(i -> isfile(joinpath(output_dir, string("paraview/output", i, ".vtm"))), nums)
     # check serialize files
     for i in nums
