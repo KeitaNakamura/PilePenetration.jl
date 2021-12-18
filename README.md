@@ -8,7 +8,7 @@
 1. Add registry
 
 ```julia
-pkg> add registry https://github.com/KeitaNakamura/KeitaNakamuraRegistry.git
+pkg> registry add https://github.com/KeitaNakamura/KeitaNakamuraRegistry.git
 ```
 
 2. Install package
