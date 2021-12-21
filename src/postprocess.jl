@@ -1,4 +1,5 @@
 using DelimitedFiles
+using Serialization
 using NaturalSort
 
 function main_postprocess()::Cint
@@ -14,7 +15,7 @@ end
 
 function main_postprocess(inputtoml::AbstractString)
     proj_dir = splitdir(inputtoml)[1]
-    INPUT = parseinput(inputtoml)
+    INPUT = PoingrSimulator.parseinput(TOML.parsefile(inputtoml))
     postprocess_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
     mkpath(postprocess_dir)
     cp(inputtoml, joinpath(postprocess_dir, "postprocess.toml"); force = true)
@@ -46,7 +47,7 @@ function outputhistory(postprocess_dir::AbstractString, INPUT::NamedTuple, data)
     file = joinpath(postprocess_dir, "history.csv")
 
     ground_height_0 = find_ground_pos(data[1].pointstate.x, gridsteps(data[1].grid, 1))
-    pile_center_0 = centroid(data[1].pile)
+    pile_center_0 = centroid(data[1].rigidbody)
 
     outputhistory_head(file)
     for d in data
@@ -54,7 +55,7 @@ function outputhistory(postprocess_dir::AbstractString, INPUT::NamedTuple, data)
             file,
             d.grid,
             d.pointstate,
-            d.pile,
+            d.rigidbody,
             INPUT.tip_height,
             INPUT.tapered_height,
             ground_height_0,

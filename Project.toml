@@ -7,8 +7,9 @@ version = "0.4.6"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 NaturalSort = "c020b1a1-e9b0-503a-9c33-f039bfc54a85"
 PoingrSimulator = "01eb3d57-6371-4320-8e81-081701a85da1"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [compat]
-PoingrSimulator = "v0.1.4"
+PoingrSimulator = "0.2"
 julia = "1.6"
