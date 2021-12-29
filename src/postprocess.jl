@@ -1,3 +1,5 @@
+using DelimitedFiles
+using Serialization
 using NaturalSort
 
 function main_postprocess()::Cint
@@ -13,7 +15,7 @@ end
 
 function main_postprocess(inputtoml::AbstractString)
     proj_dir = splitdir(inputtoml)[1]
-    INPUT = parseinput(inputtoml)
+    INPUT = PoingrSimulator.parseinput(TOML.parsefile(inputtoml))
     postprocess_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
     mkpath(postprocess_dir)
     cp(inputtoml, joinpath(postprocess_dir, "postprocess.toml"); force = true)
@@ -45,7 +47,7 @@ function outputhistory(postprocess_dir::AbstractString, INPUT::NamedTuple, data)
     file = joinpath(postprocess_dir, "history.csv")
 
     ground_height_0 = find_ground_pos(data[1].pointstate.x, gridsteps(data[1].grid, 1))
-    pile_center_0 = centroid(data[1].pile)
+    pile_center_0 = centroid(data[1].rigidbody)
 
     outputhistory_head(file)
     for d in data
@@ -53,7 +55,7 @@ function outputhistory(postprocess_dir::AbstractString, INPUT::NamedTuple, data)
             file,
             d.grid,
             d.pointstate,
-            d.pile,
+            d.rigidbody,
             INPUT.tip_height,
             INPUT.tapered_height,
             ground_height_0,
@@ -82,7 +84,16 @@ function outputhistory_head(file::AbstractString)
     end
 end
 
-function outputhistory_append(file::AbstractString, grid, pointstate, pile, tip_height, tapered_height, ground_height_0, pile_center_0)
+function outputhistory_append(
+        file::AbstractString,
+        grid,
+        pointstate,
+        pile,
+        tip_height,
+        tapered_height,
+        ground_height_0,
+        pile_center_0,
+    )
     inside_total, outside_total = extract_contact_forces(grid.state.fc, grid, pile)
     open(file, "a") do io
         disp = norm(centroid(pile) - pile_center_0)
@@ -153,3 +164,6 @@ function extract_contact_forces(fcᵢ, grid, pile)
     end
     dict2array(inside), dict2array(outside)
 end
+
+tip_height(pile) = pile[3][2]
+find_ground_pos(xₚ, dx) = maximum(x -> x[2], filter(x -> x[1] < dx, xₚ))
