@@ -53,7 +53,6 @@ end
 function main_simulation(proj_dir::AbstractString, INPUT::NamedTuple)
 
     # General
-    coordinate_system = INPUT.General.coordinate_system
     (xmin, xmax), (ymin, ymax) = INPUT.General.domain
     dx = INPUT.General.grid_space
     g = INPUT.General.gravity
@@ -81,7 +80,7 @@ function main_simulation(proj_dir::AbstractString, INPUT::NamedTuple)
     contact_penalty_parameter = INPUT.Advanced.contact_penalty_parameter
 
 
-    grid = Grid(NodeState, LinearWLS(QuadraticBSpline()), xmin:dx:xmax, ymin:dx:ymax; coordinate_system)
+    grid = Grid(NodeState, LinearWLS(QuadraticBSpline()), xmin:dx:xmax, ymin:dx:ymax; coordinate_system = Axisymmetric())
     pointstate = generate_pointstate((x,y) -> y < H, PointState, grid)
     cache = MPCache(grid, pointstate.x)
 
