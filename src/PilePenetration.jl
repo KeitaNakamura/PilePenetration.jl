@@ -37,7 +37,7 @@ function main_simulation(inputtoml_file::AbstractString)
     inputtoml = Dict{String, Any}(
         "General" => Dict{String, Any}(
             "simulation"        => "PenetrateIntoGround",
-            "coordinate_system" => "axisymmetric",           # plane_strain or axisymmetric
+            "coordinate_system" => "<Expr> Axisymmetric()",
             "domain"            => General["domain"],        # [[xmin, xmax], [ymin, ymax]] (m)
             "grid_space"        => General["grid_space"],    # (m)
             "gravity"           => General["gravity"],       # (m/s2)
