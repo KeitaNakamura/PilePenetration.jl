@@ -9,6 +9,7 @@ using TOML
 
 using Base: @_propagate_inbounds_meta, @_inline_meta
 
+include("injection.jl")
 include("postprocess.jl")
 
 function main_simulation()::Cint
@@ -100,7 +101,7 @@ function main_simulation(inputtoml_file::AbstractString)
 
     io = IOBuffer()
     TOML.print(io, inputtoml)
-    PoingrSimulator.main(proj_dir, String(take!(io)), include(joinpath(@__DIR__, "injection.jl")))
+    PoingrSimulator.main(proj_dir, String(take!(io)), Injection)
 end
 
 end # module
