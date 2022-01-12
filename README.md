@@ -24,7 +24,8 @@ julia> using PilePenetration
 
 julia> PilePenetration.main_simulation("path/to/input.toml")
 ```
-See files in `examples` for `input.toml`.
+
+An example for `input.toml` is in `test` folder.
 
 
 ## Use execution file
@@ -37,5 +38,5 @@ See files in `examples` for `input.toml`.
 $ path/to/bin/main_simulation[.exe] path/to/input.toml
 ```
 
-See files in `examples` for `input.toml`.
+An example for `input.toml` is in `test` folder.
 If the path to `input.toml` is not given, the `input.toml` in the current directory is used.
