@@ -18,7 +18,7 @@ function main_simulation()::Cint
         inputtoml = ARGS[1]
     end
     try
-        main(inputtoml)
+        main_simulation(inputtoml)
     catch
         Base.invokelatest(Base.display_error, Base.catch_stack())
         return 1
