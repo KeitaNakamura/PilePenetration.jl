@@ -1,6 +1,5 @@
 using DelimitedFiles
-using Serialization
-using NaturalSort
+using PoingrSimulator: Input
 
 function main_postprocess()::Cint
     inputtoml = only(ARGS)
@@ -15,15 +14,15 @@ end
 
 function main_postprocess(inputtoml::AbstractString)
     proj_dir = splitdir(inputtoml)[1]
-    INPUT = PoingrSimulator.parseinput(TOML.parsefile(inputtoml))
+    INPUT = PoingrSimulator.parse_inputfile(inputtoml)
     postprocess_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
     mkpath(postprocess_dir)
     cp(inputtoml, joinpath(postprocess_dir, "postprocess.toml"); force = true)
     main_postprocess(proj_dir, INPUT)
 end
 
-function main_postprocess(proj_dir::AbstractString, INPUT::NamedTuple)
-    data = readsavedata(joinpath(proj_dir, "serialize"))
+function main_postprocess(proj_dir::AbstractString, INPUT::Input{:Root})
+    data = read_serialized_data(joinpath(proj_dir, "serialized_data.jld2"))
     postprocess_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
     for name in keys(INPUT)
         if startswith(string(name), "Output")
@@ -35,15 +34,12 @@ function main_postprocess(proj_dir::AbstractString, INPUT::NamedTuple)
     end
 end
 
-function readsavedata(savedatadir::AbstractString)
-    root, dirs, files = only(walkdir(savedatadir))
-    sort!(files, lt=natural)
-    map(files) do file
-        deserialize(joinpath(root, file))
-    end
+function read_serialized_data(path::AbstractString)
+    data = jldopen(path, "r")
+    map(i -> data[i], keys(data))
 end
 
-function outputhistory(postprocess_dir::AbstractString, INPUT::NamedTuple, data)
+function outputhistory(postprocess_dir::AbstractString, INPUT::Input{:OutputHistory}, data)
     file = joinpath(postprocess_dir, "history.csv")
 
     ground_height_0 = find_ground_pos(data[1].pointstate.x, gridsteps(data[1].grid, 1))
@@ -88,13 +84,13 @@ function outputhistory_append(
         file::AbstractString,
         grid,
         pointstate,
-        pile,
+        pile::GeometricObject,
         tip_height,
         tapered_height,
         ground_height_0,
         pile_center_0,
     )
-    inside_total, outside_total = extract_contact_forces(grid.state.fc, grid, pile)
+    inside_total, outside_total = extract_contact_forces(grid.state.fc, grid, pile[])
     open(file, "a") do io
         disp = norm(centroid(pile) - pile_center_0)
         force = -sum(grid.state.fc)[2] * 2π
@@ -133,15 +129,16 @@ function divide_force_into_tip_inside_outside(height_thresh, inside_total, outsi
     tip, inside, outside
 end
 
-function extract_contact_forces(fcᵢ, grid, pile)
+function extract_contact_forces(fcᵢ, grid, pile::Polygon)
+    line_coordinates(pile, i) = coordinates(getline(pile, i))
     inside = Dict{Float64, Float64}()
     outside = Dict{Float64, Float64}()
     for I in eachindex(fcᵢ) # walk from lower height
         fcy = -2π * fcᵢ[I][2]
         iszero(fcy) && continue
         if grid[I][2] > pile[3][2] # straight and tapered part
-            centerline1 = Line(((getline(pile, 1) + reverse(getline(pile, 5))) / 2)...)
-            centerline2 = Line(((getline(pile, 2) + reverse(getline(pile, 4))) / 2)...)
+            centerline1 = Line(((line_coordinates(pile, 1) + reverse(line_coordinates(pile, 5))) / 2)...)
+            centerline2 = Line(((line_coordinates(pile, 2) + reverse(line_coordinates(pile, 4))) / 2)...)
             isinside = GeometricObjects.ray_casting_to_right(centerline1, grid[I]) ||
                        GeometricObjects.ray_casting_to_right(centerline2, grid[I])
         else # below the tip

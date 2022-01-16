@@ -6,6 +6,7 @@ using PoingrSimulator.GeometricObjects
 using PoingrSimulator.GeometricObjects: getline
 
 using TOML
+using JLD2
 
 using Base: @_propagate_inbounds_meta, @_inline_meta
 
@@ -28,7 +29,7 @@ function main_simulation()::Cint
 end
 
 function main_simulation(inputtoml_file::AbstractString)
-    proj_dir = splitdir(inputtoml_file)[1]
+    proj_dir = dirname(inputtoml_file)
     input = TOML.parsefile(inputtoml_file)
 
     General  = input["General"]
@@ -47,7 +48,7 @@ function main_simulation(inputtoml_file::AbstractString)
         ),
         "Output" => Dict{String, Any}(
             "interval"       => General["output_interval"],   # (sec)
-            "folder_name"    => joinpath(proj_dir, General["output_folder_name"]),
+            "folder_name"    => General["output_folder_name"],
             "history"        => false,
             "serialize"      => true,
             "paraview"       => true,
@@ -87,7 +88,8 @@ function main_simulation(inputtoml_file::AbstractString)
         tapered_length = Pile["tapered_length"]    # (m)
         thickness      = Pile["thickness"]         # (m) NOTE: This must be at least `2 * grid_space`
         Dict{String, Any}(
-            "velocity"    => Pile["velocity"],  # (m/s)
+            "type"        => "Polygon",
+            "velocity"    => [0.0, -Pile["velocity"]],  # (m/s)
             "coordinates" => [[radius_head, pile_length], [radius_head, tapered_length], [radius_tip, 0.0],
                               [radius_tip+thickness, 0.0], [radius_head+thickness, tapered_length], [radius_head+thickness, pile_length]]
         )
@@ -95,7 +97,7 @@ function main_simulation(inputtoml_file::AbstractString)
 
     inputtoml["Pile"] = input["Pile"]
 
-    output_dir = inputtoml["Output"]["folder_name"]
+    output_dir = joinpath(proj_dir, inputtoml["Output"]["folder_name"])
     mkpath(output_dir)
     cp(inputtoml_file, joinpath(output_dir, "input.toml"); force = true)
 
