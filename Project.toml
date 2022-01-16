@@ -1,15 +1,14 @@
 name = "PilePenetration"
 uuid = "ad004015-217e-4e1b-bc46-a8171541e4a1"
 authors = ["Keita Nakamura <keita.nakamura.1109@gmail.com>"]
-version = "0.5.3"
+version = "0.6.0"
 
 [deps]
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
-NaturalSort = "c020b1a1-e9b0-503a-9c33-f039bfc54a85"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 PoingrSimulator = "01eb3d57-6371-4320-8e81-081701a85da1"
-Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [compat]
-PoingrSimulator = "0.3"
+PoingrSimulator = "0.4"
 julia = "1.6"

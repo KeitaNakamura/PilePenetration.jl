@@ -3,7 +3,7 @@ using PilePenetration
 
 using TOML
 using CSV
-using Serialization
+using JLD2
 
 
 @testset "Short pile penetration" begin
@@ -26,9 +26,11 @@ using Serialization
     nums = 0:10
     @test all(i -> isfile(joinpath(output_dir, string("paraview/output", i, ".vtm"))), nums)
     # check serialize files
-    for i in nums
-        data = deserialize(joinpath(output_dir, "serialize", "save$i"))
-        @test keys(data) === (:pointstate, :grid, :rigidbody, :t)
+    jldopen(joinpath(output_dir, "serialized_data.jld2"), "r") do file
+        @test keys(file) == string.(nums)
+        for i in keys(file)
+            @test keys(file[i]) === (:pointstate, :grid, :rigidbody, :t)
+        end
     end
 end
 
