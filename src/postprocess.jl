@@ -22,7 +22,7 @@ function main_postprocess(inputtoml::AbstractString)
 end
 
 function main_postprocess(proj_dir::AbstractString, INPUT::Input{:Root})
-    data = read_serialized_data(joinpath(proj_dir, "serialized_data.jld2"))
+    data = read_snapshots(joinpath(proj_dir, "snapshots.jld2"))
     postprocess_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
     for name in keys(INPUT)
         if startswith(string(name), "Output")
@@ -34,7 +34,7 @@ function main_postprocess(proj_dir::AbstractString, INPUT::Input{:Root})
     end
 end
 
-function read_serialized_data(path::AbstractString)
+function read_snapshots(path::AbstractString)
     data = jldopen(path, "r")
     map(i -> data[i], keys(data))
 end

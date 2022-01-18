@@ -3,27 +3,38 @@ module Injection
 using PilePenetration
 using PoingrSimulator.Poingr
 using PoingrSimulator.GeometricObjects
-using DelimitedFiles
+using JLD2
 
 const pile_center_0 = Ref(Vec(NaN, NaN))
 const ground_height_0 = Ref(NaN)
 
+function main_output_initialize(args)
+    INPUT = args.INPUT
+
+    if haskey(INPUT.General, :restart)
+        grid, pointstate, pile = load(joinpath(INPUT.Output.original_directory, "snapshots.jld2"))["0"]
+    else
+        grid       = args.grid
+        pointstate = args.pointstate
+        pile       = args.rigidbody
+    end
+
+    pile_center_0[] = centroid(pile)
+    ground_height_0[] = PilePenetration.find_ground_pos(pointstate.x, gridsteps(grid, 1))
+
+    history_file = joinpath(INPUT.Output.directory, "history.csv")
+    PilePenetration.outputhistory_head(history_file)
+end
+
 function main_output(args)
-    output_index = args.output_index
     grid         = args.grid
     pointstate   = args.pointstate
     pile         = args.rigidbody
     INPUT        = args.INPUT
 
-    history_file = joinpath(args.output_dir, "history.csv")
-    force_inside_directory = joinpath(args.output_dir, "force inside directory")
-    force_outside_directory = joinpath(args.output_dir, "force outside directory")
-
-    if output_index == 0
-        pile_center_0[] = centroid(pile)
-        ground_height_0[] = PilePenetration.find_ground_pos(pointstate.x, gridsteps(grid, 1))
-        PilePenetration.outputhistory_head(history_file)
-    end
+    history_file = joinpath(INPUT.Output.directory, "history.csv")
+    force_inside_directory = joinpath(INPUT.Output.directory, "force inside directory")
+    force_outside_directory = joinpath(INPUT.Output.directory, "force outside directory")
 
     PilePenetration.outputhistory_append(
         history_file,

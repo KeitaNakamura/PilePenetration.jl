@@ -10,5 +10,5 @@ PoingrSimulator = "01eb3d57-6371-4320-8e81-081701a85da1"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [compat]
-PoingrSimulator = "0.4"
+PoingrSimulator = "0.5"
 julia = "1.6"

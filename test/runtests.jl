@@ -25,11 +25,11 @@ using JLD2
     # check paraview files
     nums = 0:10
     @test all(i -> isfile(joinpath(output_dir, string("paraview/output", i, ".vtm"))), nums)
-    # check serialize files
-    jldopen(joinpath(output_dir, "serialized_data.jld2"), "r") do file
+    # check snapshots file
+    jldopen(joinpath(output_dir, "snapshots.jld2"), "r") do file
         @test keys(file) == string.(nums)
         for i in keys(file)
-            @test keys(file[i]) === (:pointstate, :grid, :rigidbody, :t)
+            @test keys(file[i]) === (:grid, :pointstate, :rigidbody, :rigidbody0, :t)
         end
     end
 end
