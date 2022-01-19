@@ -22,19 +22,17 @@ function main_postprocess(inputtoml::AbstractString)
 end
 
 function main_postprocess(proj_dir::AbstractString, INPUT::Input{:Root})
-    data = read_serialized_data(joinpath(proj_dir, "serialized_data.jld2"))
+    data = read_snapshots(joinpath(proj_dir, "snapshots.jld2"))
     postprocess_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
     for name in keys(INPUT)
         if startswith(string(name), "Output")
             input = INPUT[name]
-            if input.execute
-                @eval $(Symbol(lowercase(string(name))))($postprocess_dir, $input, $data)
-            end
+            @eval $(Symbol(lowercase(string(name))))($postprocess_dir, $input, $data)
         end
     end
 end
 
-function read_serialized_data(path::AbstractString)
+function read_snapshots(path::AbstractString)
     data = jldopen(path, "r")
     map(i -> data[i], keys(data))
 end
@@ -42,8 +40,8 @@ end
 function outputhistory(postprocess_dir::AbstractString, INPUT::Input{:OutputHistory}, data)
     file = joinpath(postprocess_dir, "history.csv")
 
-    ground_height_0 = find_ground_pos(data[1].pointstate.x, gridsteps(data[1].grid, 1))
-    pile_center_0 = centroid(data[1].rigidbody)
+    ground_height_0 = INPUT.ground_height
+    pile_center_0 = centroid(first(data).rigidbody0)
 
     outputhistory_head(file)
     for d in data

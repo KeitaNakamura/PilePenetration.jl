@@ -38,7 +38,7 @@ function main_simulation(inputtoml_file::AbstractString)
 
     inputtoml = Dict{String, Any}(
         "General" => Dict{String, Any}(
-            "simulation"        => "PenetrateIntoGround",
+            "type"              => "PenetrateIntoGround",
             "coordinate_system" => "axisymmetric",
             "domain"            => General["domain"],        # [[xmin, xmax], [ymin, ymax]] (m)
             "grid_space"        => General["grid_space"],    # (m)
@@ -48,9 +48,9 @@ function main_simulation(inputtoml_file::AbstractString)
         ),
         "Output" => Dict{String, Any}(
             "interval"       => General["output_interval"],   # (sec)
-            "folder_name"    => General["output_folder_name"],
+            "directory"      => General["output_folder_name"],
             "history"        => false,
-            "serialize"      => true,
+            "snapshots"      => true,
             "paraview"       => true,
             "paraview_grid"  => false,
             "copy_inputfile" => false,
@@ -62,11 +62,15 @@ function main_simulation(inputtoml_file::AbstractString)
             "npoints_in_cell"           => 2, # in each dimension
         ),
     )
+    if haskey(General, "restart")
+        inputtoml["General"]["restart"] = General["restart"]
+    end
 
     inputtoml["SoilLayer"] = map(input["SoilLayer"]) do SoilLayer
         friction_with_pile_inside  = SoilLayer["friction_with_pile_inside"]
         friction_with_pile_outside = SoilLayer["friction_with_pile_outside"]
         Dict{String, Any}(
+            "mohr_coulomb_type"       => "circumscribed",
             "thickness"               => SoilLayer["thickness"],                        # (m)
             "density"                 => SoilLayer["unit_weight"] / General["gravity"], # (kg/m3)
             "poissons_ratio"          => SoilLayer["poissons_ratio"],
@@ -87,17 +91,19 @@ function main_simulation(inputtoml_file::AbstractString)
         pile_length    = Pile["pile_length"]       # (m)
         tapered_length = Pile["tapered_length"]    # (m)
         thickness      = Pile["thickness"]         # (m) NOTE: This must be at least `2 * grid_space`
-        Dict{String, Any}(
-            "type"        => "Polygon",
-            "velocity"    => [0.0, -Pile["velocity"]],  # (m/s)
-            "coordinates" => [[radius_head, pile_length], [radius_head, tapered_length], [radius_tip, 0.0],
-                              [radius_tip+thickness, 0.0], [radius_head+thickness, tapered_length], [radius_head+thickness, pile_length]]
-        )
+        Any[
+            Dict{String, Any}(
+                "type"        => "Polygon",
+                "velocity"    => [0.0, -Pile["velocity"]],  # (m/s)
+                "coordinates" => [[radius_head, pile_length], [radius_head, tapered_length], [radius_tip, 0.0],
+                                  [radius_tip+thickness, 0.0], [radius_head+thickness, tapered_length], [radius_head+thickness, pile_length]]
+            )
+        ]
     end
 
     inputtoml["Pile"] = input["Pile"]
 
-    output_dir = joinpath(proj_dir, inputtoml["Output"]["folder_name"])
+    output_dir = joinpath(proj_dir, inputtoml["Output"]["directory"])
     mkpath(output_dir)
     cp(inputtoml_file, joinpath(output_dir, "input.toml"); force = true)
 
