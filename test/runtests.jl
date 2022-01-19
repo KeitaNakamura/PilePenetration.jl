@@ -34,18 +34,51 @@ using JLD2
     end
 end
 
-@testset "Post-processing" begin
-    output_dir = "output.tmp"
-    inputfile = joinpath(output_dir, "postprocess.toml")
-    cp("postprocess.toml", inputfile; force = true)
-    PilePenetration.main_postprocess(inputfile)
+@testset "Restart simulation" begin
+    PilePenetration.main_simulation("input_restart.toml"); println()
+    dict = TOML.parsefile("input_restart.toml")
+    dir_ext = splitext(dict["General"]["output_folder_name"])
+    output_dir = string(dir_ext[1], "_restarted_from_", dict["General"]["restart"], dir_ext[2])
 
     # check results
     output = CSV.File("output.csv") # expected output
-    history = CSV.File(joinpath(output_dir, "postprocess.tmp", "history.csv"))
+    history = CSV.File(joinpath(output_dir, "history.csv"))
     for name in propertynames(output)
-        output_col = output[name]
-        history_col = history[name]
-        @test history_col ≈ output_col atol=1e-4
+        output_last = output[name][end]
+        history_last = history[name][end]
+        @test history_last ≈ output_last atol=1e-4
+    end
+end
+
+@testset "Post-processing" begin
+    @testset "normal" begin
+        output_dir = "output.tmp"
+        inputfile = joinpath(output_dir, "postprocess.toml")
+        cp("postprocess.toml", inputfile; force = true)
+        PilePenetration.main_postprocess(inputfile)
+
+        # check results
+        output = CSV.File("output.csv") # expected output
+        history = CSV.File(joinpath(output_dir, "postprocess.tmp", "history.csv"))
+        for name in propertynames(output)
+            output_col = output[name]
+            history_col = history[name]
+            @test history_col ≈ output_col atol=1e-4
+        end
+    end
+    @testset "restart" begin
+        output_dir = "output_restarted_from_5.tmp"
+        inputfile = joinpath(output_dir, "postprocess.toml")
+        cp("postprocess.toml", inputfile; force = true)
+        PilePenetration.main_postprocess(inputfile)
+
+        # check results
+        output = CSV.File("output.csv") # expected output
+        history = CSV.File(joinpath(output_dir, "postprocess.tmp", "history.csv"))
+        for name in propertynames(output)
+            output_last = output[name][end]
+            history_last = history[name][end]
+            @test history_last ≈ output_last atol=1e-4
+        end
     end
 end

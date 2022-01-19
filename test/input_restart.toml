@@ -1,0 +1,50 @@
+# short pile for test
+
+[General]
+domain = [[0.0, 0.5], [0.0, 1.1]] # [[xmin, xmax], [ymin, ymax]] (m)
+grid_space = 0.01   # (m)
+gravity = 9.81      # (m/s2)
+total_time = 0.5    # (sec)
+output_interval = 0.05 # (sec)
+output_folder_name = "output.tmp"
+show_progress = false
+restart = 5
+
+[[SoilLayer]]
+thickness = 0.2 # (m)
+unit_weight = 12753.0 # (kg/m3)
+poissons_ratio = 0.333
+youngs_modulus = 1e6  # (N/m2)
+friction_angle = 28.0 # (degree)
+dilatancy_angle = 0.0 # (degree)
+cohesion = 0.0        # (N/m2)
+tension_cutoff = 0.0  # (N/m2)
+friction_with_pile_inside  = 0.35
+friction_with_pile_outside = 0.35
+
+[[SoilLayer]]
+thickness = 0.8 # (m)
+unit_weight = 14715.0 # (kg/m3)
+poissons_ratio = 0.333
+youngs_modulus = 1e6  # (N/m2)
+friction_angle = 32.0 # (degree)
+dilatancy_angle = 0.0 # (degree)
+cohesion = 0.0        # (N/m2)
+tension_cutoff = 0.0  # (N/m2)
+friction_with_pile_inside  = 0.41
+friction_with_pile_outside = 0.41
+
+[Pile]
+diameter_head = 0.15   # (m)
+diameter_tip  = 0.15   # (m)
+pile_length = 1.0      # (m)
+tapered_length = 0.715 # (m)
+thickness = 0.02       # (m) NOTE: This must be at least `2 * grid_space`
+velocity = 1.0   # (m/s)
+vacuum = false
+vacuum_height = 0.15 # (m)
+
+[Advanced]
+CFL = 0.5
+contact_threshold_scale = 1.5
+contact_penalty_parameter = 0.0
