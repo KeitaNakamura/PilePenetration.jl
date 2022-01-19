@@ -1,6 +1,9 @@
 using DelimitedFiles
 using PoingrSimulator: Input
 
+using Serialization
+using NaturalSort
+
 function main_postprocess()::Cint
     inputtoml = only(ARGS)
     try
@@ -22,7 +25,7 @@ function main_postprocess(inputtoml::AbstractString)
 end
 
 function main_postprocess(proj_dir::AbstractString, INPUT::Input{:Root})
-    data = read_snapshots(joinpath(proj_dir, "snapshots.jld2"))
+    data = read_snapshots(joinpath(proj_dir, "snapshots"))
     postprocess_dir = joinpath(proj_dir, INPUT.General.output_folder_name)
     for name in keys(INPUT)
         if startswith(string(name), "Output")
@@ -32,9 +35,12 @@ function main_postprocess(proj_dir::AbstractString, INPUT::Input{:Root})
     end
 end
 
-function read_snapshots(path::AbstractString)
-    data = jldopen(path, "r")
-    map(i -> data[i], keys(data))
+function read_snapshots(dir::AbstractString)
+    root, _, files = only(walkdir(dir))
+    sort!(files, lt=natural)
+    map(files) do file
+        deserialize(joinpath(root, file))
+    end
 end
 
 function outputhistory(postprocess_dir::AbstractString, INPUT::Input{:OutputHistory}, data)
