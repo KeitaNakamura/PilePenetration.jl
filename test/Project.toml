@@ -1,5 +1,6 @@
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
-JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+NaturalSort = "c020b1a1-e9b0-503a-9c33-f039bfc54a85"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

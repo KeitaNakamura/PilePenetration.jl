@@ -6,7 +6,6 @@ using PoingrSimulator.GeometricObjects
 using PoingrSimulator.GeometricObjects: getline
 
 using TOML
-using JLD2
 
 using Base: @_propagate_inbounds_meta, @_inline_meta
 

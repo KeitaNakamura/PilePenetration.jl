@@ -3,7 +3,6 @@ module Injection
 using PilePenetration
 using PoingrSimulator.Poingr
 using PoingrSimulator.GeometricObjects
-using JLD2
 
 function main_output_initialize(args)
     INPUT = args.INPUT

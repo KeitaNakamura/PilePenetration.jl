@@ -3,8 +3,9 @@ using PilePenetration
 
 using TOML
 using CSV
-using JLD2
 
+using Serialization
+using NaturalSort
 
 @testset "Short pile penetration" begin
     PilePenetration.main_simulation("input.toml"); println()
@@ -23,14 +24,16 @@ using JLD2
     @test TOML.parsefile("input.toml") == TOML.parsefile(joinpath(output_dir, "input.toml"))
 
     # check paraview files
-    nums = 0:10
-    @test all(i -> isfile(joinpath(output_dir, string("paraview/output", i, ".vtm"))), nums)
+    @test all(i -> isfile(joinpath(output_dir, string("paraview/output", i, ".vtm"))), 0:10)
     # check snapshots file
-    jldopen(joinpath(output_dir, "snapshots.jld2"), "r") do file
-        @test keys(file) == string.(nums)
-        for i in keys(file)
-            @test keys(file[i]) === (:grid, :pointstate, :rigidbody, :rigidbody0, :t)
-        end
+    root, _, files = only(walkdir(joinpath(output_dir, "snapshots")))
+    count = 0
+    for file in sort(files; lt = natural)
+        @test file == "snapshot$count"
+        data = deserialize(joinpath(root, file))
+        @test data isa NamedTuple
+        @test keys(data) == (:grid, :pointstate, :rigidbody, :rigidbody0, :t)
+        count += 1
     end
 end
 
