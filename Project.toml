@@ -1,7 +1,7 @@
 name = "PilePenetration"
 uuid = "ad004015-217e-4e1b-bc46-a8171541e4a1"
 authors = ["Keita Nakamura <keita.nakamura.1109@gmail.com>"]
-version = "0.6.1"
+version = "0.6.2"
 
 [deps]
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
