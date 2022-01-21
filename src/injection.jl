@@ -22,13 +22,24 @@ function main_output(args)
     force_inside_directory = joinpath(INPUT.Output.directory, "force inside directory")
     force_outside_directory = joinpath(INPUT.Output.directory, "force outside directory")
 
+    tip_height = 2 * pile[1][1]              # 1D = 2R
+    tapered_height = pile[2][2] - pile[3][2] # tapered length
+    if haskey(INPUT, :OutputHistory)
+        if haskey(INPUT.OutputHistory, :tip_height)
+            tip_height = oftype(tip_height, INPUT.OutputHistory.tip_height)
+        end
+        if haskey(INPUT.OutputHistory, :tapered_height)
+            tapered_height = oftype(tapered_height, INPUT.OutputHistory.tapered_height)
+        end
+    end
+
     PilePenetration.outputhistory_append(
         history_file,
         grid,
         pointstate,
         pile,
-        2 * pile[1][1], # 1D = 2R
-        pile[2][2] - pile[3][2], # tapered length
+        tip_height,
+        tapered_height,
         sum(layer -> layer.thickness, INPUT.SoilLayer),
         centroid(pile0),
     )

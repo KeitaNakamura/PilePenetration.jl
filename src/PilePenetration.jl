@@ -101,8 +101,16 @@ function main_simulation(inputtoml_file::AbstractString)
     end
 
     inputtoml["Pile"] = input["Pile"]
+    if haskey(input, "OutputHistory")
+        inputtoml["OutputHistory"] = input["OutputHistory"]
+    end
 
-    output_dir = joinpath(proj_dir, inputtoml["Output"]["directory"])
+    if haskey(inputtoml["General"], "restart")
+        dir_ext = splitext(inputtoml["Output"]["directory"])
+        output_dir = joinpath(proj_dir, string(dir_ext[1], "_restarted_from_", inputtoml["General"]["restart"], dir_ext[2]))
+    else
+        output_dir = joinpath(proj_dir, inputtoml["Output"]["directory"])
+    end
     mkpath(output_dir)
     cp(inputtoml_file, joinpath(output_dir, "input.toml"); force = true)
 

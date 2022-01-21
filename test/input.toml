@@ -43,6 +43,10 @@ velocity = 1.0   # (m/s)
 vacuum = false
 vacuum_height = 0.15 # (m)
 
+[OutputHistory]
+tip_height = 0.15      # (m)
+tapered_height = 0.715 # (m)
+
 [Advanced]
 CFL = 0.5
 contact_threshold_scale = 1.5
