@@ -101,6 +101,9 @@ function main_simulation(inputtoml_file::AbstractString)
     end
 
     inputtoml["Pile"] = input["Pile"]
+    if haskey(input, "OutputHistory")
+        inputtoml["OutputHistory"] = input["OutputHistory"]
+    end
 
     if haskey(inputtoml["General"], "restart")
         dir_ext = splitext(inputtoml["Output"]["directory"])
