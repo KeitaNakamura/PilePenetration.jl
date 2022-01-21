@@ -59,6 +59,7 @@ function main_simulation(inputtoml_file::AbstractString)
             "contact_threshold_scale"   => Advanced["contact_threshold_scale"],
             "contact_penalty_parameter" => Advanced["contact_penalty_parameter"],
             "npoints_in_cell"           => 2, # in each dimension
+            "reorder_pointstate"        => false, # don't reorder to prevent error
         ),
     )
     if haskey(General, "restart")
