@@ -14,7 +14,7 @@ pkg> registry add https://github.com/KeitaNakamura/KeitaNakamuraRegistry.git
 2. Install package
 
 ```julia
-pkg> add https://github.com/KeitaNakamura/PilePenetration.jl.git
+pkg> add PilePenetration
 ```
 
 3. Run simulations
