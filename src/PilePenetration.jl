@@ -79,9 +79,9 @@ function main_simulation(inputtoml_file::AbstractString)
             "friction_angle"          => SoilLayer["friction_angle"],                   # (degree)
             "dilatancy_angle"         => SoilLayer["dilatancy_angle"],                  # (degree)
             "tension_cutoff"          => SoilLayer["tension_cutoff"],
-            "friction_with_rigidbody" => [friction_with_pile_inside, friction_with_pile_inside,
-                                          friction_with_pile_outside, friction_with_pile_outside,
-                                          friction_with_pile_outside, friction_with_pile_outside],
+            "friction_with_rigidbodies" => [[friction_with_pile_inside, friction_with_pile_inside,
+                                             friction_with_pile_outside, friction_with_pile_outside,
+                                             friction_with_pile_outside, friction_with_pile_outside]],
         )
     end
 

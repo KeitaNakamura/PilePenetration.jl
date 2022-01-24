@@ -17,7 +17,7 @@ using NaturalSort
     for name in propertynames(output)
         output_col = output[name]
         history_col = history[name]
-        @test history_col ≈ output_col atol=1e-4
+        @test history_col ≈ output_col atol=1e-3
     end
 
     # check input.toml
@@ -49,7 +49,7 @@ end
     for name in propertynames(output)
         output_last = output[name][end]
         history_last = history[name][end]
-        @test history_last ≈ output_last atol=1e-4
+        @test history_last ≈ output_last atol=1e-3
     end
 end
 
@@ -66,7 +66,7 @@ end
         for name in propertynames(output)
             output_col = output[name]
             history_col = history[name]
-            @test history_col ≈ output_col atol=1e-4
+            @test history_col ≈ output_col atol=1e-3
         end
     end
     @testset "restart" begin
@@ -81,7 +81,7 @@ end
         for name in propertynames(output)
             output_last = output[name][end]
             history_last = history[name][end]
-            @test history_last ≈ output_last atol=1e-4
+            @test history_last ≈ output_last atol=1e-3
         end
     end
 end
