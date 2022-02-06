@@ -38,7 +38,7 @@ end
 function read_snapshots(dir::AbstractString)
     root, _, files = only(walkdir(dir))
     sort!(files, lt=natural)
-    map(files) do file
+    Iterators.map(files) do file
         deserialize(joinpath(root, file))
     end
 end
